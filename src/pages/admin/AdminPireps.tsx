@@ -44,6 +44,19 @@ export default function AdminPireps() {
     },
   });
 
+  const { data: multiplierConfigs } = useQuery({
+    queryKey: ["multiplier-configs-admin"],
+    queryFn: async () => {
+      const { data } = await supabase.from("multiplier_configs").select("*").order("value");
+      return data || [];
+    },
+  });
+
+  const getMultiplierName = (value: number) => {
+    const config = multiplierConfigs?.find(m => Number(m.value) === Number(value));
+    return config ? config.name : `×${value}`;
+  };
+
   const updatePirepMutation = useMutation({
     mutationFn: async ({
       pirepId,
@@ -228,7 +241,7 @@ export default function AdminPireps() {
                         {Number(pirep.flight_hours).toFixed(1)}
                       </td>
                       <td className="py-3 px-2">
-                        <span className="font-mono">×{pirep.multiplier}</span>
+                        <span className="font-mono text-xs" title={`×${pirep.multiplier}`}>{getMultiplierName(pirep.multiplier)}</span>
                       </td>
                       <td className="py-3 px-2">{getStatusBadge(pirep.status)}</td>
                       <td className="py-3 px-2 text-right">

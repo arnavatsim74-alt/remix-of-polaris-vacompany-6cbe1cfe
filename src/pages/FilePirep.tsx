@@ -52,6 +52,9 @@ export default function FilePirep() {
     if (ft && (ft === "passenger" || ft === "cargo")) setFlightType(ft);
   }, [searchParams]);
 
+  // Check if filing from event or ROTW (bypass aircraft restrictions)
+  const isEventOrRotw = searchParams.has("event") || searchParams.has("rotw");
+
   const { data: aircraft } = useQuery({
     queryKey: ["aircraft"],
     queryFn: async () => {
@@ -59,6 +62,38 @@ export default function FilePirep() {
       return data || [];
     },
   });
+
+  // Fetch rank configs for aircraft unlock restrictions
+  const { data: rankConfigs } = useQuery({
+    queryKey: ["rank-configs-all"],
+    queryFn: async () => {
+      const { data } = await supabase.from("rank_configs").select("*").eq("is_active", true).order("order_index");
+      return data || [];
+    },
+  });
+
+  // Get unlocked aircraft for pilot's current rank
+  const unlockedAircraftIcaos = (() => {
+    if (!rankConfigs || !pilot?.current_rank) return null; // null = no restrictions configured
+    const pilotRank = rankConfigs.find(r => r.name === pilot.current_rank);
+    if (!pilotRank) return null;
+    // Collect all aircraft unlocked up to and including the pilot's rank
+    const unlocked: string[] = [];
+    for (const rank of rankConfigs) {
+      if (rank.order_index <= pilotRank.order_index) {
+        const ac = (rank as any).aircraft_unlocks;
+        if (ac && Array.isArray(ac)) {
+          unlocked.push(...ac);
+        }
+      }
+    }
+    return unlocked.length > 0 ? unlocked : null; // null means no restrictions
+  })();
+
+  // Filter aircraft based on rank if restrictions exist and not event/ROTW
+  const availableAircraft = (!isEventOrRotw && unlockedAircraftIcaos)
+    ? aircraft?.filter(ac => unlockedAircraftIcaos.includes(ac.icao_code))
+    : aircraft;
 
   const { data: multipliers } = useQuery({
     queryKey: ["multiplier-configs"],
@@ -191,13 +226,18 @@ export default function FilePirep() {
                   <Select value={aircraftIcao} onValueChange={setAircraftIcao} disabled={isLoading}>
                     <SelectTrigger><SelectValue placeholder="Select aircraft" /></SelectTrigger>
                     <SelectContent>
-                      {aircraft?.map((ac) => (
+                      {availableAircraft?.map((ac) => (
                         <SelectItem key={ac.id} value={ac.icao_code}>
                           {ac.name}{ac.livery ? ` (${ac.livery})` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {!isEventOrRotw && unlockedAircraftIcaos && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Aircraft restricted by your rank. Events & ROTW flights bypass restrictions.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="flightHours">Flight Hours *</Label>
