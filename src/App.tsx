@@ -35,6 +35,10 @@ import AdminMembers from "@/pages/admin/AdminMembers";
 import AdminChallenges from "@/pages/admin/AdminChallenges";
 import AdminAnnouncements from "@/pages/admin/AdminAnnouncements";
 import AdminSidebarLinks from "@/pages/admin/AdminSidebarLinks";
+import AdminAcademy from "@/pages/admin/AdminAcademy";
+import Academy from "@/pages/Academy";
+import AcademyCourse from "@/pages/AcademyCourse";
+import AcademyExam from "@/pages/AcademyExam";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +66,9 @@ const App = () => (
                 <Route path="challenges" element={<Challenges />} />
                 <Route path="aflv-bonus" element={<AflvBonus />} />
                 <Route path="tracker" element={<Tracker />} />
+                <Route path="academy" element={<Academy />} />
+                <Route path="academy/course/:courseId" element={<AcademyCourse />} />
+                <Route path="academy/exam/:examId" element={<AcademyExam />} />
                 <Route path="admin/pireps" element={<AdminPireps />} />
                 <Route path="admin/routes" element={<AdminRoutes />} />
                 <Route path="admin/rotw" element={<AdminROTW />} />
@@ -76,6 +83,7 @@ const App = () => (
                 <Route path="admin/challenges" element={<AdminChallenges />} />
                 <Route path="admin/announcements" element={<AdminAnnouncements />} />
                 <Route path="admin/sidebar-links" element={<AdminSidebarLinks />} />
+                <Route path="admin/academy" element={<AdminAcademy />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

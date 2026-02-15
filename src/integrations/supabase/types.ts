@@ -14,6 +14,425 @@ export type Database = {
   }
   public: {
     Tables: {
+      academy_courses: {
+        Row: {
+          category: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_published: boolean | null
+          is_required: boolean | null
+          sort_order: number | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          is_required?: boolean | null
+          sort_order?: number | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          is_required?: boolean | null
+          sort_order?: number | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      academy_enrollments: {
+        Row: {
+          completed_at: string | null
+          course_id: string
+          enrolled_at: string | null
+          id: string
+          pilot_id: string
+          status: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          course_id: string
+          enrolled_at?: string | null
+          id?: string
+          pilot_id: string
+          status?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          course_id?: string
+          enrolled_at?: string | null
+          id?: string
+          pilot_id?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academy_enrollments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "academy_courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "academy_enrollments_pilot_id_fkey"
+            columns: ["pilot_id"]
+            isOneToOne: false
+            referencedRelation: "pilots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      academy_exam_attempts: {
+        Row: {
+          answers: Json | null
+          completed_at: string | null
+          exam_id: string
+          id: string
+          passed: boolean | null
+          pilot_id: string
+          score: number | null
+          started_at: string | null
+        }
+        Insert: {
+          answers?: Json | null
+          completed_at?: string | null
+          exam_id: string
+          id?: string
+          passed?: boolean | null
+          pilot_id: string
+          score?: number | null
+          started_at?: string | null
+        }
+        Update: {
+          answers?: Json | null
+          completed_at?: string | null
+          exam_id?: string
+          id?: string
+          passed?: boolean | null
+          pilot_id?: string
+          score?: number | null
+          started_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academy_exam_attempts_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "academy_exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "academy_exam_attempts_pilot_id_fkey"
+            columns: ["pilot_id"]
+            isOneToOne: false
+            referencedRelation: "pilots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      academy_exam_questions: {
+        Row: {
+          created_at: string | null
+          exam_id: string
+          explanation: string | null
+          id: string
+          options: Json
+          question: string
+          sort_order: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          exam_id: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          question: string
+          sort_order?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          exam_id?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          question?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academy_exam_questions_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "academy_exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      academy_exams: {
+        Row: {
+          course_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_published: boolean | null
+          max_attempts: number | null
+          passing_score: number | null
+          time_limit_minutes: number | null
+          title: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          max_attempts?: number | null
+          passing_score?: number | null
+          time_limit_minutes?: number | null
+          title: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          max_attempts?: number | null
+          passing_score?: number | null
+          time_limit_minutes?: number | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academy_exams_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "academy_courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      academy_lesson_progress: {
+        Row: {
+          completed_at: string | null
+          id: string
+          lesson_id: string
+          pilot_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          lesson_id: string
+          pilot_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          lesson_id?: string
+          pilot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academy_lesson_progress_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "academy_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "academy_lesson_progress_pilot_id_fkey"
+            columns: ["pilot_id"]
+            isOneToOne: false
+            referencedRelation: "pilots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      academy_lessons: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          id: string
+          module_id: string
+          sort_order: number | null
+          title: string
+          video_url: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          module_id: string
+          sort_order?: number | null
+          title: string
+          video_url?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          module_id?: string
+          sort_order?: number | null
+          title?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academy_lessons_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "academy_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      academy_modules: {
+        Row: {
+          course_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          sort_order: number | null
+          title: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          sort_order?: number | null
+          title: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          sort_order?: number | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academy_modules_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "academy_courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      academy_practicals: {
+        Row: {
+          completed_at: string | null
+          course_id: string
+          created_at: string | null
+          examiner_id: string | null
+          id: string
+          notes: string | null
+          pilot_id: string
+          result_notes: string | null
+          scheduled_at: string | null
+          status: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          course_id: string
+          created_at?: string | null
+          examiner_id?: string | null
+          id?: string
+          notes?: string | null
+          pilot_id: string
+          result_notes?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          course_id?: string
+          created_at?: string | null
+          examiner_id?: string | null
+          id?: string
+          notes?: string | null
+          pilot_id?: string
+          result_notes?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academy_practicals_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "academy_courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "academy_practicals_examiner_id_fkey"
+            columns: ["examiner_id"]
+            isOneToOne: false
+            referencedRelation: "pilots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "academy_practicals_pilot_id_fkey"
+            columns: ["pilot_id"]
+            isOneToOne: false
+            referencedRelation: "pilots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      academy_rosters: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          entries: Json | null
+          id: string
+          roster_date: string
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          entries?: Json | null
+          id?: string
+          roster_date: string
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          entries?: Json | null
+          id?: string
+          roster_date?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academy_rosters_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "pilots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       aircraft: {
         Row: {
           cargo_capacity_kg: number | null
@@ -288,6 +707,8 @@ export type Database = {
       }
       events: {
         Row: {
+          aircraft_icao: string | null
+          aircraft_name: string | null
           arr_icao: string
           available_arr_gates: string[] | null
           available_dep_gates: string[] | null
@@ -303,6 +724,8 @@ export type Database = {
           start_time: string
         }
         Insert: {
+          aircraft_icao?: string | null
+          aircraft_name?: string | null
           arr_icao: string
           available_arr_gates?: string[] | null
           available_dep_gates?: string[] | null
@@ -318,6 +741,8 @@ export type Database = {
           start_time: string
         }
         Update: {
+          aircraft_icao?: string | null
+          aircraft_name?: string | null
           arr_icao?: string
           available_arr_gates?: string[] | null
           available_dep_gates?: string[] | null
@@ -629,6 +1054,7 @@ export type Database = {
       }
       rank_configs: {
         Row: {
+          aircraft_unlocks: string[] | null
           color: string | null
           created_at: string | null
           description: string | null
@@ -639,8 +1065,10 @@ export type Database = {
           min_hours: number
           name: string
           order_index: number
+          perk_unlocks: string[] | null
         }
         Insert: {
+          aircraft_unlocks?: string[] | null
           color?: string | null
           created_at?: string | null
           description?: string | null
@@ -651,8 +1079,10 @@ export type Database = {
           min_hours?: number
           name: string
           order_index?: number
+          perk_unlocks?: string[] | null
         }
         Update: {
+          aircraft_unlocks?: string[] | null
           color?: string | null
           created_at?: string | null
           description?: string | null
@@ -663,6 +1093,7 @@ export type Database = {
           min_hours?: number
           name?: string
           order_index?: number
+          perk_unlocks?: string[] | null
         }
         Relationships: []
       }

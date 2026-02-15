@@ -119,16 +119,16 @@ export default function Events() {
 
             return (
               <Card key={event.id} className="overflow-hidden">
-                {/* Banner */}
-                <div className="h-40 bg-gradient-to-br from-primary/20 to-primary/5 relative">
+                {/* Full Banner */}
+                <div className="relative">
                   {event.banner_url ? (
                     <img
                       src={event.banner_url}
                       alt={event.name}
-                      className="w-full h-full object-cover"
+                      className="w-full object-contain"
                     />
                   ) : (
-                    <div className="flex items-center justify-center h-full">
+                    <div className="h-40 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                       <Plane className="h-16 w-16 text-primary/30" />
                     </div>
                   )}
@@ -159,6 +159,14 @@ export default function Events() {
                       {event.dep_icao} → {event.arr_icao}
                     </span>
                   </div>
+
+                  {/* Aircraft */}
+                  {(event as any).aircraft_icao && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Plane className="h-4 w-4 text-muted-foreground" />
+                      <span>{(event as any).aircraft_name || (event as any).aircraft_icao}</span>
+                    </div>
+                  )}
 
                   {/* Gates if registered */}
                   {registered && registration && (

@@ -28,6 +28,7 @@ const pilotNavItems = [
   { title: "Details", url: "/details", icon: Info },
   { title: "AFLV Bonus", url: "/aflv-bonus", icon: CreditCard },
   { title: "Tracker", url: "/tracker", icon: MapPin },
+  { title: "Academy", url: "/academy", icon: BookOpen },
 ];
 
 const adminNavItems = [
@@ -45,6 +46,7 @@ const adminNavItems = [
   { title: "Applications", url: "/admin/applications", icon: Users },
   { title: "Settings", url: "/admin/settings", icon: Settings },
   { title: "Sidebar Links", url: "/admin/sidebar-links", icon: LinkIcon },
+  { title: "Academy", url: "/admin/academy", icon: BookOpen },
 ];
 
 export function AppSidebar() {

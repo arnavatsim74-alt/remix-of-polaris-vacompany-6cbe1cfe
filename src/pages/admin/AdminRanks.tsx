@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Plus, Trash2, Edit, Award } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 interface RankForm {
@@ -20,6 +21,8 @@ interface RankForm {
   color: string;
   description: string;
   order_index: number;
+  aircraft_unlocks: string;
+  perk_unlocks: string;
 }
 
 const emptyForm: RankForm = {
@@ -30,6 +33,8 @@ const emptyForm: RankForm = {
   color: "bg-slate-500",
   description: "",
   order_index: 0,
+  aircraft_unlocks: "",
+  perk_unlocks: "",
 };
 
 export default function AdminRanks() {
@@ -60,6 +65,8 @@ export default function AdminRanks() {
         color: data.color,
         description: data.description,
         order_index: data.order_index,
+        aircraft_unlocks: data.aircraft_unlocks ? data.aircraft_unlocks.split(",").map(s => s.trim()).filter(Boolean) : [],
+        perk_unlocks: data.perk_unlocks ? data.perk_unlocks.split(",").map(s => s.trim()).filter(Boolean) : [],
       };
 
       if (data.id) {
@@ -100,6 +107,8 @@ export default function AdminRanks() {
       color: rank.color || "bg-slate-500",
       description: rank.description || "",
       order_index: rank.order_index,
+      aircraft_unlocks: (rank.aircraft_unlocks || []).join(", "),
+      perk_unlocks: (rank.perk_unlocks || []).join(", "),
     });
     setIsDialogOpen(true);
   };
@@ -169,6 +178,14 @@ export default function AdminRanks() {
                 <Label>Description</Label>
                 <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Short description" />
               </div>
+              <div className="space-y-2">
+                <Label>Aircraft Unlocked (comma separated ICAO codes)</Label>
+                <Input value={form.aircraft_unlocks} onChange={(e) => setForm({ ...form, aircraft_unlocks: e.target.value })} placeholder="B738, A320, B77W" />
+              </div>
+              <div className="space-y-2">
+                <Label>Perks Unlocked (comma separated)</Label>
+                <Input value={form.perk_unlocks} onChange={(e) => setForm({ ...form, perk_unlocks: e.target.value })} placeholder="Priority boarding, Custom callsign" />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={closeDialog}>Cancel</Button>
@@ -192,36 +209,54 @@ export default function AdminRanks() {
             <div className="relative overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-2 font-medium">Order</th>
-                    <th className="text-left py-3 px-2 font-medium">Label</th>
-                    <th className="text-left py-3 px-2 font-medium">Slug</th>
-                    <th className="text-left py-3 px-2 font-medium">Hours Range</th>
-                    <th className="text-left py-3 px-2 font-medium">Color</th>
-                    <th className="text-right py-3 px-2 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ranks.map((rank) => (
-                    <tr key={rank.id} className="border-b last:border-0 hover:bg-muted/50">
-                      <td className="py-3 px-2">{rank.order_index}</td>
-                      <td className="py-3 px-2 font-medium">{rank.label}</td>
-                      <td className="py-3 px-2 font-mono text-xs">{rank.name}</td>
-                      <td className="py-3 px-2">
-                        {rank.min_hours}h {rank.max_hours ? `- ${rank.max_hours}h` : "+"}
-                      </td>
-                      <td className="py-3 px-2">
-                        <div className={`w-6 h-6 rounded ${rank.color || "bg-slate-500"}`} />
-                      </td>
-                      <td className="py-3 px-2 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(rank)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteMutation.mutate(rank.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                   <tr className="border-b">
+                     <th className="text-left py-3 px-2 font-medium">Order</th>
+                     <th className="text-left py-3 px-2 font-medium">Label</th>
+                     <th className="text-left py-3 px-2 font-medium">Slug</th>
+                     <th className="text-left py-3 px-2 font-medium">Hours Range</th>
+                     <th className="text-left py-3 px-2 font-medium">Color</th>
+                     <th className="text-left py-3 px-2 font-medium">Aircraft Unlocked</th>
+                     <th className="text-left py-3 px-2 font-medium">Perks</th>
+                     <th className="text-right py-3 px-2 font-medium">Actions</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {ranks.map((rank: any) => (
+                     <tr key={rank.id} className="border-b last:border-0 hover:bg-muted/50">
+                       <td className="py-3 px-2">{rank.order_index}</td>
+                       <td className="py-3 px-2 font-medium">{rank.label}</td>
+                       <td className="py-3 px-2 font-mono text-xs">{rank.name}</td>
+                       <td className="py-3 px-2">
+                         {rank.min_hours}h {rank.max_hours ? `- ${rank.max_hours}h` : "+"}
+                       </td>
+                       <td className="py-3 px-2">
+                         <div className={`w-6 h-6 rounded ${rank.color || "bg-slate-500"}`} />
+                       </td>
+                       <td className="py-3 px-2">
+                         <div className="flex flex-wrap gap-1">
+                           {(rank.aircraft_unlocks || []).map((ac: string) => (
+                             <Badge key={ac} variant="outline" className="text-xs">{ac}</Badge>
+                           ))}
+                           {!(rank.aircraft_unlocks?.length) && <span className="text-xs text-muted-foreground">—</span>}
+                         </div>
+                       </td>
+                       <td className="py-3 px-2">
+                         <div className="flex flex-wrap gap-1">
+                           {(rank.perk_unlocks || []).map((p: string) => (
+                             <Badge key={p} variant="secondary" className="text-xs">{p}</Badge>
+                           ))}
+                           {!(rank.perk_unlocks?.length) && <span className="text-xs text-muted-foreground">—</span>}
+                         </div>
+                       </td>
+                       <td className="py-3 px-2 text-right">
+                         <div className="flex items-center justify-end gap-1">
+                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(rank)}>
+                             <Edit className="h-4 w-4" />
+                           </Button>
+                           <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteMutation.mutate(rank.id)}>
+                             <Trash2 className="h-4 w-4" />
+                           </Button>
+                         </div>
                       </td>
                     </tr>
                   ))}

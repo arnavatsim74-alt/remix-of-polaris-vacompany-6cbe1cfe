@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, Plus, Trash2, Calendar, Users, Upload, Image as ImageIcon } from "lucide-react";
+import { Shield, Plus, Trash2, Calendar, Users, Upload, Image as ImageIcon, Plane, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -22,6 +22,7 @@ export default function AdminEvents() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isFetchingGates, setIsFetchingGates] = useState(false);
   const [newEvent, setNewEvent] = useState({
     name: "",
     description: "",
@@ -30,6 +31,8 @@ export default function AdminEvents() {
     end_time: "",
     dep_icao: "",
     arr_icao: "",
+    aircraft_icao: "",
+    aircraft_name: "",
     available_dep_gates: "",
     available_arr_gates: "",
   });
@@ -54,6 +57,45 @@ export default function AdminEvents() {
       return data || [];
     },
   });
+
+  const { data: aircraft } = useQuery({
+    queryKey: ["aircraft-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("aircraft").select("*").order("name");
+      return data || [];
+    },
+  });
+
+  const fetchGatesFromIfatc = async (icao: string, type: "dep" | "arr") => {
+    if (!icao || icao.length < 3) {
+      toast.error("Enter a valid ICAO code first");
+      return;
+    }
+    setIsFetchingGates(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-gates", {
+        body: { icao: icao.toUpperCase() },
+      });
+      if (error) throw error;
+      const gates = data?.gates || [];
+      if (gates.length > 0) {
+        const gateStr = gates.join(", ");
+        if (type === "dep") {
+          setNewEvent(prev => ({ ...prev, available_dep_gates: gateStr }));
+        } else {
+          setNewEvent(prev => ({ ...prev, available_arr_gates: gateStr }));
+        }
+        toast.success(`Fetched ${gates.length} gates for ${icao.toUpperCase()}`);
+      } else {
+        toast.info("No gates found from ifatc.org — you can enter them manually");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to fetch gates — enter them manually");
+    } finally {
+      setIsFetchingGates(false);
+    }
+  };
 
   const getRegistrationCount = (eventId: string) => {
     return registrations?.filter((r) => r.event_id === eventId).length || 0;
@@ -90,6 +132,8 @@ export default function AdminEvents() {
         end_time: event.end_time,
         dep_icao: event.dep_icao.toUpperCase(),
         arr_icao: event.arr_icao.toUpperCase(),
+        aircraft_icao: event.aircraft_icao || null,
+        aircraft_name: event.aircraft_name || null,
         banner_url: bannerUrl,
         available_dep_gates: event.available_dep_gates
           ? event.available_dep_gates.split(",").map((g) => g.trim())
@@ -97,7 +141,7 @@ export default function AdminEvents() {
         available_arr_gates: event.available_arr_gates
           ? event.available_arr_gates.split(",").map((g) => g.trim())
           : [],
-      });
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -113,6 +157,8 @@ export default function AdminEvents() {
         end_time: "",
         dep_icao: "",
         arr_icao: "",
+        aircraft_icao: "",
+        aircraft_name: "",
         available_dep_gates: "",
         available_arr_gates: "",
       });
@@ -258,8 +304,50 @@ export default function AdminEvents() {
                   />
                 </div>
               </div>
+              {/* Aircraft */}
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Aircraft ICAO</Label>
+                  <Select
+                    value={newEvent.aircraft_icao}
+                    onValueChange={(v) => {
+                      const ac = aircraft?.find(a => a.icao_code === v);
+                      setNewEvent({ ...newEvent, aircraft_icao: v, aircraft_name: ac?.name || "" });
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select aircraft" /></SelectTrigger>
+                    <SelectContent>
+                      {aircraft?.map(ac => (
+                        <SelectItem key={ac.id} value={ac.icao_code}>
+                          {ac.name} ({ac.icao_code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Aircraft Name</Label>
+                  <Input
+                    value={newEvent.aircraft_name}
+                    onChange={(e) => setNewEvent({ ...newEvent, aircraft_name: e.target.value })}
+                    placeholder="Boeing 737-800"
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
-                <Label>Available Departure Gates (comma separated)</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Available Departure Gates (comma separated)</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fetchGatesFromIfatc(newEvent.dep_icao, "dep")}
+                    disabled={isFetchingGates || !newEvent.dep_icao}
+                  >
+                    <RefreshCw className={`h-3 w-3 mr-1 ${isFetchingGates ? "animate-spin" : ""}`} />
+                    Auto-fetch
+                  </Button>
+                </div>
                 <Input
                   value={newEvent.available_dep_gates}
                   onChange={(e) => setNewEvent({ ...newEvent, available_dep_gates: e.target.value })}
@@ -267,7 +355,19 @@ export default function AdminEvents() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Available Arrival Gates (comma separated)</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Available Arrival Gates (comma separated)</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fetchGatesFromIfatc(newEvent.arr_icao, "arr")}
+                    disabled={isFetchingGates || !newEvent.arr_icao}
+                  >
+                    <RefreshCw className={`h-3 w-3 mr-1 ${isFetchingGates ? "animate-spin" : ""}`} />
+                    Auto-fetch
+                  </Button>
+                </div>
                 <Input
                   value={newEvent.available_arr_gates}
                   onChange={(e) => setNewEvent({ ...newEvent, available_arr_gates: e.target.value })}
