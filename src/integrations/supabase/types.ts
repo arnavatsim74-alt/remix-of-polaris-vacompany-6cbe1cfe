@@ -528,6 +528,36 @@ export type Database = {
         }
         Relationships: []
       }
+      bonus_tiers: {
+        Row: {
+          card_image_url: string | null
+          created_at: string
+          id: string
+          min_hours: number
+          name: string
+          sort_order: number
+          text_color: string
+        }
+        Insert: {
+          card_image_url?: string | null
+          created_at?: string
+          id?: string
+          min_hours?: number
+          name: string
+          sort_order?: number
+          text_color?: string
+        }
+        Update: {
+          card_image_url?: string | null
+          created_at?: string
+          id?: string
+          min_hours?: number
+          name?: string
+          sort_order?: number
+          text_color?: string
+        }
+        Relationships: []
+      }
       challenge_completions: {
         Row: {
           challenge_id: string

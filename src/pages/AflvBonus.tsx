@@ -4,35 +4,28 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Plane, Clock, Award, TrendingUp } from "lucide-react";
+import { Plane, Clock, Award, TrendingUp, CreditCard } from "lucide-react";
 
-import bonusCard200 from "@/assets/bonus-card-200.svg";
-import bonusCard400 from "@/assets/bonus-card-400.svg";
-import bonusCard600 from "@/assets/bonus-card-600.svg";
-import bonusCard1200 from "@/assets/bonus-card-1200.svg";
-import bonusCard2000 from "@/assets/bonus-card-2000.svg";
-import bonusCard4000 from "@/assets/bonus-card-4000.svg";
+interface BonusTier {
+  id: string;
+  name: string;
+  min_hours: number;
+  card_image_url: string | null;
+  text_color: string;
+  sort_order: number;
+}
 
-const TIERS = [
-  { name: "Premium", minHours: 200, card: bonusCard200, textColor: "text-black" },
-  { name: "Essential", minHours: 400, card: bonusCard400, textColor: "text-black" },
-  { name: "Gold", minHours: 600, card: bonusCard600, textColor: "text-black" },
-  { name: "Card Platina", minHours: 1200, card: bonusCard1200, textColor: "text-white" },
-  { name: "Prestige", minHours: 2000, card: bonusCard2000, textColor: "text-white" },
-  { name: "Black", minHours: 4000, card: bonusCard4000, textColor: "text-white" },
-];
-
-function getCurrentTier(hours: number) {
-  let tier = null;
-  for (const t of TIERS) {
-    if (hours >= t.minHours) tier = t;
+function getCurrentTier(tiers: BonusTier[], hours: number) {
+  let tier: BonusTier | null = null;
+  for (const t of tiers) {
+    if (hours >= t.min_hours) tier = t;
   }
   return tier;
 }
 
-function getNextTier(hours: number) {
-  for (const t of TIERS) {
-    if (hours < t.minHours) return t;
+function getNextTier(tiers: BonusTier[], hours: number) {
+  for (const t of tiers) {
+    if (hours < t.min_hours) return t;
   }
   return null;
 }
@@ -48,8 +41,17 @@ export default function AflvBonus() {
   const { pilot } = useAuth();
   const queryClient = useQueryClient();
   const hours = pilot?.total_hours ?? 0;
-  const currentTier = getCurrentTier(hours);
-  const nextTier = getNextTier(hours);
+
+  const { data: tiers = [] } = useQuery({
+    queryKey: ["bonus-tiers"],
+    queryFn: async () => {
+      const { data } = await supabase.from("bonus_tiers").select("*").order("sort_order");
+      return (data || []) as BonusTier[];
+    },
+  });
+
+  const currentTier = getCurrentTier(tiers, hours);
+  const nextTier = getNextTier(tiers, hours);
 
   const { data: bonusCard } = useQuery({
     queryKey: ["bonus-card", pilot?.id],
@@ -79,17 +81,15 @@ export default function AflvBonus() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bonus-card"] }),
   });
 
-  // Auto-create card if pilot exists but no card yet
   const shouldCreate = !!pilot && bonusCard === null && !createCard.isPending;
-  if (shouldCreate) {
-    createCard.mutate();
-  }
+  if (shouldCreate) createCard.mutate();
 
   const progressToNext = nextTier
-    ? ((hours - (currentTier?.minHours ?? 0)) / (nextTier.minHours - (currentTier?.minHours ?? 0))) * 100
+    ? ((hours - (currentTier?.min_hours ?? 0)) / (nextTier.min_hours - (currentTier?.min_hours ?? 0))) * 100
     : 100;
 
   const cardNumber = bonusCard?.card_number ?? "•••• •••• •••• ••••";
+  const defaultCardImage = tiers[0]?.card_image_url;
 
   return (
     <div className="space-y-8">
@@ -108,18 +108,23 @@ export default function AflvBonus() {
           </CardHeader>
           <CardContent>
             <div className="relative aspect-[1172/690] w-full max-w-lg mx-auto">
-              <img
-                src={currentTier?.card ?? bonusCard200}
-                alt={`${currentTier?.name ?? "Standard"} tier card`}
-                className="w-full h-full object-contain rounded-xl shadow-2xl"
-              />
-              {/* Overlay name & card number */}
-              <div className={`absolute bottom-[18%] left-[8%] drop-shadow-lg ${currentTier?.textColor ?? "text-white"}`} style={{ fontFamily: "'Bank Gothic', 'Copperplate', 'Copperplate Gothic Bold', sans-serif" }}>
+              {(currentTier?.card_image_url || defaultCardImage) ? (
+                <img
+                  src={currentTier?.card_image_url ?? defaultCardImage!}
+                  alt={`${currentTier?.name ?? "Standard"} tier card`}
+                  className="w-full h-full object-contain rounded-xl shadow-2xl"
+                />
+              ) : (
+                <div className="w-full h-full rounded-xl shadow-2xl bg-gradient-to-br from-muted to-muted-foreground/20 flex items-center justify-center">
+                  <CreditCard className="h-16 w-16 text-muted-foreground/50" />
+                </div>
+              )}
+              <div className={`absolute bottom-[18%] left-[8%] drop-shadow-lg ${currentTier?.text_color ?? "text-white"}`} style={{ fontFamily: "'Bank Gothic', 'Copperplate', 'Copperplate Gothic Bold', sans-serif" }}>
                 <p className="text-xs md:text-sm opacity-90">{cardNumber}</p>
                 <p className="text-lg md:text-xl font-bold uppercase">{pilot?.full_name ?? "Pilot"}</p>
               </div>
               <div className="absolute bottom-[8%] right-[8%]">
-                <Badge variant="secondary" className={`text-xs font-bold bg-white/20 backdrop-blur border-white/30 ${currentTier?.textColor ?? "text-white"}`}>
+                <Badge variant="secondary" className={`text-xs font-bold bg-white/20 backdrop-blur border-white/30 ${currentTier?.text_color ?? "text-white"}`}>
                   {currentTier?.name ?? "Standard"}
                 </Badge>
               </div>
@@ -140,7 +145,6 @@ export default function AflvBonus() {
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="flex items-center gap-4 p-6">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
@@ -152,7 +156,6 @@ export default function AflvBonus() {
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="flex items-center gap-4 p-6">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
@@ -164,7 +167,6 @@ export default function AflvBonus() {
               </div>
             </CardContent>
           </Card>
-
           {nextTier && (
             <Card>
               <CardContent className="p-6 space-y-3">
@@ -174,7 +176,7 @@ export default function AflvBonus() {
                 </div>
                 <Progress value={progressToNext} className="h-3" />
                 <p className="text-xs text-muted-foreground">
-                  {(nextTier.minHours - hours).toFixed(1)} hours remaining
+                  {(nextTier.min_hours - hours).toFixed(1)} hours remaining
                 </p>
               </CardContent>
             </Card>
@@ -183,64 +185,37 @@ export default function AflvBonus() {
       </div>
 
       {/* All Tiers */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Tier Levels</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {TIERS.map((tier) => {
-            const unlocked = hours >= tier.minHours;
-            return (
-              <Card key={tier.name} className={unlocked ? "ring-2 ring-primary" : "opacity-60"}>
-                <CardContent className="p-4 space-y-3">
-                  <div className="aspect-[1172/690] w-full overflow-hidden rounded-lg">
-                    <img src={tier.card} alt={tier.name} className="w-full h-full object-contain" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold">{tier.name}</span>
-                    <Badge variant={unlocked ? "default" : "outline"}>
-                      {unlocked ? "Unlocked" : `${tier.minHours}h required`}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Benefits */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tier Benefits</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-lg border p-4">
-              <h3 className="font-semibold text-sm mb-1">Premium (200h)</h3>
-              <p className="text-xs text-muted-foreground">Priority PIREP review, exclusive Premium badge on leaderboard</p>
-            </div>
-            <div className="rounded-lg border p-4">
-              <h3 className="font-semibold text-sm mb-1">Essential (400h)</h3>
-              <p className="text-xs text-muted-foreground">1.1x bonus multiplier on all flights, Essential badge</p>
-            </div>
-            <div className="rounded-lg border p-4">
-              <h3 className="font-semibold text-sm mb-1">Gold (600h)</h3>
-              <p className="text-xs text-muted-foreground">1.2x bonus multiplier, early event registration access</p>
-            </div>
-            <div className="rounded-lg border p-4">
-              <h3 className="font-semibold text-sm mb-1">Card Platina (1200h)</h3>
-              <p className="text-xs text-muted-foreground">1.3x bonus multiplier, custom callsign, featured on homepage</p>
-            </div>
-            <div className="rounded-lg border p-4">
-              <h3 className="font-semibold text-sm mb-1">Prestige (2000h)</h3>
-              <p className="text-xs text-muted-foreground">1.5x bonus multiplier, route suggestion privileges</p>
-            </div>
-            <div className="rounded-lg border p-4">
-              <h3 className="font-semibold text-sm mb-1">Black (4000h)</h3>
-              <p className="text-xs text-muted-foreground">2x bonus multiplier, VIP status, exclusive Black events</p>
-            </div>
+      {tiers.length > 0 && (
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Tier Levels</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {tiers.map((tier) => {
+              const unlocked = hours >= tier.min_hours;
+              return (
+                <Card key={tier.id} className={unlocked ? "ring-2 ring-primary" : "opacity-60"}>
+                  <CardContent className="p-4 space-y-3">
+                    {tier.card_image_url ? (
+                      <div className="aspect-[1172/690] w-full overflow-hidden rounded-lg">
+                        <img src={tier.card_image_url} alt={tier.name} className="w-full h-full object-contain" />
+                      </div>
+                    ) : (
+                      <div className="aspect-[1172/690] w-full overflow-hidden rounded-lg bg-muted flex items-center justify-center">
+                        <CreditCard className="h-8 w-8 text-muted-foreground/40" />
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold">{tier.name}</span>
+                      <Badge variant={unlocked ? "default" : "outline"}>
+                        {unlocked ? "Unlocked" : `${tier.min_hours}h required`}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      )}
     </div>
   );
 }

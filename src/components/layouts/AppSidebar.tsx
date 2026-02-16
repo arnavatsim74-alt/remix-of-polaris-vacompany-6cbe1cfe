@@ -47,6 +47,7 @@ const adminNavItems = [
   { title: "Settings", url: "/admin/settings", icon: Settings },
   { title: "Sidebar Links", url: "/admin/sidebar-links", icon: LinkIcon },
   { title: "Academy", url: "/admin/academy", icon: BookOpen },
+  { title: "Bonus Tiers", url: "/admin/bonus-tiers", icon: CreditCard },
 ];
 
 export function AppSidebar() {
