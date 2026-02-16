@@ -74,20 +74,21 @@ export default function AdminEvents() {
     setIsFetchingGates(true);
     try {
       const { data, error } = await supabase.functions.invoke("fetch-gates", {
-        body: { icao: icao.toUpperCase() },
+        body: { icao: icao.toUpperCase(), aircraft_icao: newEvent.aircraft_icao || undefined },
       });
       if (error) throw error;
       const gates = data?.gates || [];
       if (gates.length > 0) {
-        const gateStr = gates.join(", ");
+        // Gates now come as objects with name, type, class, max_aircraft_size
+        const gateStr = gates.map((g: any) => typeof g === "string" ? g : g.name).join(", ");
         if (type === "dep") {
           setNewEvent(prev => ({ ...prev, available_dep_gates: gateStr }));
         } else {
           setNewEvent(prev => ({ ...prev, available_arr_gates: gateStr }));
         }
-        toast.success(`Fetched ${gates.length} gates for ${icao.toUpperCase()}`);
+        toast.success(`Fetched ${gates.length} compatible gates for ${icao.toUpperCase()}`);
       } else {
-        toast.info("No gates found from ifatc.org — you can enter them manually");
+        toast.info("No compatible gates found — you can enter them manually");
       }
     } catch (err) {
       console.error(err);

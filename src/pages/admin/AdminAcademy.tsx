@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, Plus, Trash2, Edit, GraduationCap, BookOpen, ClipboardCheck, Users, Calendar as CalendarIcon, FileQuestion } from "lucide-react";
+import { Shield, Plus, Trash2, Edit, GraduationCap, BookOpen, ClipboardCheck, Users, FileQuestion, Plane, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminAcademy() {
@@ -32,23 +32,21 @@ export default function AdminAcademy() {
         </div>
         <div>
           <h1 className="text-2xl font-bold">Academy Management</h1>
-          <p className="text-muted-foreground">Manage courses, exams, practicals, and rosters</p>
+          <p className="text-muted-foreground">Manage courses, exams, and practicals</p>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="courses"><BookOpen className="h-4 w-4 mr-1" />Courses</TabsTrigger>
           <TabsTrigger value="exams"><ClipboardCheck className="h-4 w-4 mr-1" />Exams</TabsTrigger>
           <TabsTrigger value="practicals"><GraduationCap className="h-4 w-4 mr-1" />Practicals</TabsTrigger>
-          <TabsTrigger value="rosters"><CalendarIcon className="h-4 w-4 mr-1" />Rosters</TabsTrigger>
           <TabsTrigger value="enrollments"><Users className="h-4 w-4 mr-1" />Enrollments</TabsTrigger>
         </TabsList>
 
         <TabsContent value="courses"><CoursesTab /></TabsContent>
         <TabsContent value="exams"><ExamsTab /></TabsContent>
         <TabsContent value="practicals"><PracticalsTab /></TabsContent>
-        <TabsContent value="rosters"><RostersTab /></TabsContent>
         <TabsContent value="enrollments"><EnrollmentsTab /></TabsContent>
       </Tabs>
     </div>
@@ -60,7 +58,7 @@ function CoursesTab() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ title: "", description: "", category: "general", is_published: false, is_required: false, sort_order: 0 });
+  const [form, setForm] = useState({ title: "", description: "", category: "general", is_published: false, is_required: false, sort_order: 0, thumbnail_url: "" });
 
   const { data: courses, isLoading } = useQuery({
     queryKey: ["admin-academy-courses"],
@@ -72,7 +70,7 @@ function CoursesTab() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = { ...form };
+      const payload = { ...form, thumbnail_url: form.thumbnail_url || null };
       if (editId) {
         const { error } = await supabase.from("academy_courses").update(payload).eq("id", editId);
         if (error) throw error;
@@ -100,10 +98,9 @@ function CoursesTab() {
     },
   });
 
-  const closeDialog = () => { setIsOpen(false); setEditId(null); setForm({ title: "", description: "", category: "general", is_published: false, is_required: false, sort_order: 0 }); };
-  const openEdit = (c: any) => { setEditId(c.id); setForm({ title: c.title, description: c.description || "", category: c.category, is_published: c.is_published, is_required: c.is_required, sort_order: c.sort_order }); setIsOpen(true); };
+  const closeDialog = () => { setIsOpen(false); setEditId(null); setForm({ title: "", description: "", category: "general", is_published: false, is_required: false, sort_order: 0, thumbnail_url: "" }); };
+  const openEdit = (c: any) => { setEditId(c.id); setForm({ title: c.title, description: c.description || "", category: c.category, is_published: c.is_published, is_required: c.is_required, sort_order: c.sort_order, thumbnail_url: c.thumbnail_url || "" }); setIsOpen(true); };
 
-  // Sub-components for managing modules and lessons within a course
   const [managingCourseId, setManagingCourseId] = useState<string | null>(null);
 
   return (
@@ -116,7 +113,7 @@ function CoursesTab() {
           </div>
           <Dialog open={isOpen} onOpenChange={(o) => !o && closeDialog()}>
             <DialogTrigger asChild>
-              <Button onClick={() => { setEditId(null); setForm({ title: "", description: "", category: "general", is_published: false, is_required: false, sort_order: 0 }); setIsOpen(true); }}>
+              <Button onClick={() => { setEditId(null); setForm({ title: "", description: "", category: "general", is_published: false, is_required: false, sort_order: 0, thumbnail_url: "" }); setIsOpen(true); }}>
                 <Plus className="h-4 w-4 mr-2" /> Add Course
               </Button>
             </DialogTrigger>
@@ -128,6 +125,15 @@ function CoursesTab() {
               <div className="space-y-4">
                 <div className="space-y-2"><Label>Title</Label><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Course title" /></div>
                 <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} /></div>
+                <div className="space-y-2">
+                  <Label>Thumbnail / Image URL</Label>
+                  <Input value={form.thumbnail_url} onChange={e => setForm({ ...form, thumbnail_url: e.target.value })} placeholder="https://example.com/image.jpg" />
+                  {form.thumbnail_url && (
+                    <div className="h-24 rounded-lg overflow-hidden border">
+                      <img src={form.thumbnail_url} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
                 <div className="grid gap-4 grid-cols-2">
                   <div className="space-y-2">
                     <Label>Category</Label>
@@ -165,13 +171,20 @@ function CoursesTab() {
             <div className="space-y-3">
               {courses.map(c => (
                 <div key={c.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{c.title}</span>
-                      {c.is_published ? <Badge variant="default">Published</Badge> : <Badge variant="secondary">Draft</Badge>}
-                      {c.is_required && <Badge variant="destructive">Required</Badge>}
+                  <div className="flex items-center gap-3 flex-1">
+                    {c.thumbnail_url && (
+                      <div className="h-12 w-16 rounded overflow-hidden shrink-0">
+                        <img src={c.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{c.title}</span>
+                        {c.is_published ? <Badge variant="default">Published</Badge> : <Badge variant="secondary">Draft</Badge>}
+                        {c.is_required && <Badge variant="destructive">Required</Badge>}
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-1">{c.description}</p>
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-1">{c.description}</p>
                   </div>
                   <div className="flex gap-1">
                     <Button size="sm" variant="outline" onClick={() => setManagingCourseId(managingCourseId === c.id ? null : c.id)}>
@@ -346,6 +359,7 @@ function ExamsTab() {
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", course_id: "", passing_score: 70, time_limit_minutes: 30, max_attempts: 3, is_published: false });
   const [managingExamId, setManagingExamId] = useState<string | null>(null);
+  const [viewingResultsExamId, setViewingResultsExamId] = useState<string | null>(null);
 
   const { data: courses } = useQuery({
     queryKey: ["admin-academy-courses"],
@@ -441,6 +455,9 @@ function ExamsTab() {
                     <p className="text-xs text-muted-foreground">{exam.academy_courses?.title} · {exam.passing_score}% pass · {exam.max_attempts} attempts</p>
                   </div>
                   <div className="flex gap-1">
+                    <Button size="sm" variant="outline" onClick={() => setViewingResultsExamId(viewingResultsExamId === exam.id ? null : exam.id)}>
+                      <Eye className="h-4 w-4 mr-1" /> Results
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => setManagingExamId(managingExamId === exam.id ? null : exam.id)}>
                       <FileQuestion className="h-4 w-4 mr-1" /> Questions
                     </Button>
@@ -453,8 +470,62 @@ function ExamsTab() {
         </CardContent>
       </Card>
 
+      {viewingResultsExamId && <ExamResultsViewer examId={viewingResultsExamId} />}
       {managingExamId && <ExamQuestionsManager examId={managingExamId} />}
     </>
+  );
+}
+
+/* ---- EXAM RESULTS VIEWER ---- */
+function ExamResultsViewer({ examId }: { examId: string }) {
+  const { data: attempts, isLoading } = useQuery({
+    queryKey: ["admin-exam-attempts", examId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("academy_exam_attempts")
+        .select("*, pilots!academy_exam_attempts_pilot_id_fkey(pid, full_name)")
+        .eq("exam_id", examId)
+        .order("started_at", { ascending: false });
+      return data || [];
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Exam Results ({attempts?.length || 0})</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? <Skeleton className="h-40" /> : attempts && attempts.length > 0 ? (
+          <div className="relative overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b">
+                <th className="text-left py-3 px-2 font-medium">Pilot</th>
+                <th className="text-left py-3 px-2 font-medium">Score</th>
+                <th className="text-left py-3 px-2 font-medium">Result</th>
+                <th className="text-left py-3 px-2 font-medium">Date</th>
+              </tr></thead>
+              <tbody>
+                {attempts.map((a: any) => (
+                  <tr key={a.id} className="border-b last:border-0">
+                    <td className="py-3 px-2">{a.pilots?.full_name} ({a.pilots?.pid})</td>
+                    <td className="py-3 px-2 font-mono">{a.score !== null ? `${a.score}%` : "—"}</td>
+                    <td className="py-3 px-2">
+                      {a.completed_at ? (
+                        <Badge variant={a.passed ? "default" : "destructive"}>{a.passed ? "Passed" : "Failed"}</Badge>
+                      ) : (
+                        <Badge variant="secondary">In Progress</Badge>
+                      )}
+                    </td>
+                    <td className="py-3 px-2 text-muted-foreground">{a.started_at ? new Date(a.started_at).toLocaleString() : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-center py-4 text-sm text-muted-foreground">No attempts yet</p>}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -553,6 +624,10 @@ function ExamQuestionsManager({ examId }: { examId: string }) {
 
 /* ---- PRACTICALS TAB ---- */
 function PracticalsTab() {
+  const queryClient = useQueryClient();
+  const [isAssignOpen, setIsAssignOpen] = useState(false);
+  const [assignForm, setAssignForm] = useState({ pilot_id: "", course_id: "", notes: "", scheduled_at: "" });
+
   const { data: practicals, isLoading } = useQuery({
     queryKey: ["admin-practicals"],
     queryFn: async () => {
@@ -561,10 +636,58 @@ function PracticalsTab() {
     },
   });
 
-  const queryClient = useQueryClient();
+  const { data: pilots } = useQuery({
+    queryKey: ["admin-pilots-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("pilots").select("id, pid, full_name").order("full_name");
+      return data || [];
+    },
+  });
+
+  const { data: courses } = useQuery({
+    queryKey: ["admin-academy-courses"],
+    queryFn: async () => {
+      const { data } = await supabase.from("academy_courses").select("id, title").order("title");
+      return data || [];
+    },
+  });
+
+  const { data: aircraft } = useQuery({
+    queryKey: ["aircraft-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("aircraft").select("*").order("name");
+      return data || [];
+    },
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: async () => {
+      if (!assignForm.pilot_id || !assignForm.course_id) throw new Error("Select pilot and course");
+      const { error } = await supabase.from("academy_practicals").insert({
+        pilot_id: assignForm.pilot_id,
+        course_id: assignForm.course_id,
+        notes: assignForm.notes || null,
+        scheduled_at: assignForm.scheduled_at || null,
+        status: "scheduled",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-practicals"] });
+      toast.success("Practical assigned");
+      setIsAssignOpen(false);
+      setAssignForm({ pilot_id: "", course_id: "", notes: "", scheduled_at: "" });
+    },
+    onError: (e) => toast.error(e.message || "Failed to assign practical"),
+  });
+
   const updateMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("academy_practicals").update({ status, completed_at: ["passed", "failed"].includes(status) ? new Date().toISOString() : null }).eq("id", id);
+    mutationFn: async ({ id, status, result_notes }: { id: string; status: string; result_notes?: string }) => {
+      const { error } = await supabase.from("academy_practicals").update({
+        status,
+        result_notes: result_notes || null,
+        completed_at: ["passed", "failed"].includes(status) ? new Date().toISOString() : null,
+      }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -573,17 +696,79 @@ function PracticalsTab() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("academy_practicals").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-practicals"] });
+      toast.success("Practical deleted");
+    },
+  });
+
   return (
     <Card>
-      <CardHeader><CardTitle>Practicals / Check Rides</CardTitle><CardDescription>Manage practical assessments</CardDescription></CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Practicals / Check Rides</CardTitle>
+          <CardDescription>Assign and manage practical assessments</CardDescription>
+        </div>
+        <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
+          <DialogTrigger asChild>
+            <Button><Plus className="h-4 w-4 mr-2" /> Assign Practical</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Assign Practical Flight</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Pilot</Label>
+                <Select value={assignForm.pilot_id} onValueChange={v => setAssignForm({ ...assignForm, pilot_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select pilot" /></SelectTrigger>
+                  <SelectContent>
+                    {pilots?.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.full_name} ({p.pid})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Course</Label>
+                <Select value={assignForm.course_id} onValueChange={v => setAssignForm({ ...assignForm, course_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
+                  <SelectContent>
+                    {courses?.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Scheduled Date/Time</Label>
+                <Input type="datetime-local" value={assignForm.scheduled_at} onChange={e => setAssignForm({ ...assignForm, scheduled_at: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Notes / Instructions</Label>
+                <Textarea value={assignForm.notes} onChange={e => setAssignForm({ ...assignForm, notes: e.target.value })} placeholder="e.g. Origin: UUEE, Destination: EGLL, Aircraft: A359" rows={3} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAssignOpen(false)}>Cancel</Button>
+              <Button onClick={() => assignMutation.mutate()} disabled={assignMutation.isPending}>Assign</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
       <CardContent>
         {isLoading ? <Skeleton className="h-40" /> : practicals && practicals.length > 0 ? (
           <div className="space-y-3">
             {practicals.map((p: any) => (
               <div key={p.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                <div>
+                <div className="flex-1">
                   <p className="font-medium">{p.pilots?.full_name} ({p.pilots?.pid})</p>
                   <p className="text-xs text-muted-foreground">{p.academy_courses?.title}</p>
+                  {p.notes && <p className="text-xs text-muted-foreground mt-1 italic">{p.notes}</p>}
+                  {p.scheduled_at && <p className="text-xs text-muted-foreground">Scheduled: {new Date(p.scheduled_at).toLocaleString()}</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={p.status === "passed" ? "default" : p.status === "failed" ? "destructive" : "secondary"}>{p.status}</Badge>
@@ -593,87 +778,14 @@ function PracticalsTab() {
                       <Button size="sm" variant="destructive" onClick={() => updateMutation.mutate({ id: p.id, status: "failed" })}>Fail</Button>
                     </>
                   )}
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteMutation.mutate(p.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
         ) : <p className="text-center py-8 text-muted-foreground">No practicals scheduled</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
-/* ---- ROSTERS TAB ---- */
-function RostersTab() {
-  const queryClient = useQueryClient();
-  const [isOpen, setIsOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", roster_date: "" });
-
-  const { data: rosters, isLoading } = useQuery({
-    queryKey: ["admin-rosters"],
-    queryFn: async () => {
-      const { data } = await supabase.from("academy_rosters").select("*").order("roster_date", { ascending: false });
-      return data || [];
-    },
-  });
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("academy_rosters").insert({ title: form.title, description: form.description || null, roster_date: form.roster_date });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-rosters"] });
-      toast.success("Roster created");
-      setIsOpen(false);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("academy_rosters").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-rosters"] });
-      toast.success("Roster deleted");
-    },
-  });
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div><CardTitle>Rosters</CardTitle><CardDescription>Crew duty rosters</CardDescription></div>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" /> Add Roster</Button></DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Create Roster</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2"><Label>Title</Label><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} /></div>
-              <div className="space-y-2"><Label>Date</Label><Input type="date" value={form.roster_date} onChange={e => setForm({ ...form, roster_date: e.target.value })} /></div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-              <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>Create</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? <Skeleton className="h-40" /> : rosters && rosters.length > 0 ? (
-          <div className="space-y-3">
-            {rosters.map(r => (
-              <div key={r.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                <div>
-                  <p className="font-medium">{r.title}</p>
-                  <p className="text-xs text-muted-foreground">{r.roster_date}</p>
-                </div>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteMutation.mutate(r.id)}><Trash2 className="h-4 w-4" /></Button>
-              </div>
-            ))}
-          </div>
-        ) : <p className="text-center py-8 text-muted-foreground">No rosters yet</p>}
       </CardContent>
     </Card>
   );
