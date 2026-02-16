@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -253,9 +254,7 @@ export default function AdminRanks() {
                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(rank)}>
                              <Edit className="h-4 w-4" />
                            </Button>
-                           <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteMutation.mutate(rank.id)}>
-                             <Trash2 className="h-4 w-4" />
-                           </Button>
+                           <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>} title="Delete Rank?" description="This rank configuration will be permanently deleted." onConfirm={() => deleteMutation.mutate(rank.id)} />
                          </div>
                       </td>
                     </tr>

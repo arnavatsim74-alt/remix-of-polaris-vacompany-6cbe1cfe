@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Plus, Trash2, Edit, GraduationCap, BookOpen, ClipboardCheck, Users, FileQuestion, Plane, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function AdminAcademy() {
   const { isAdmin } = useAuth();
@@ -191,7 +192,7 @@ function CoursesTab() {
                       <BookOpen className="h-4 w-4 mr-1" /> Content
                     </Button>
                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(c)}><Edit className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteMutation.mutate(c.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>} title="Delete Course?" description="This will permanently delete this course and all its content." onConfirm={() => deleteMutation.mutate(c.id)} />
                   </div>
                 </div>
               ))}
@@ -318,9 +319,7 @@ function CourseContentManager({ courseId }: { courseId: string }) {
                 <Button size="sm" variant="outline" onClick={() => { setAddingLesson(mod.id); setLessonForm({ ...lessonForm, module_id: mod.id }); }}>
                   <Plus className="h-3 w-3 mr-1" /> Lesson
                 </Button>
-                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteModuleMutation.mutate(mod.id)}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"><Trash2 className="h-3 w-3" /></Button>} title="Delete Module?" description="This will delete the module and all its lessons." onConfirm={() => deleteModuleMutation.mutate(mod.id)} />
               </div>
             </div>
             {addingLesson === mod.id && (
@@ -339,9 +338,7 @@ function CourseContentManager({ courseId }: { courseId: string }) {
               {lessons?.filter(l => l.module_id === mod.id).map(lesson => (
                 <div key={lesson.id} className="flex items-center justify-between py-1 text-sm">
                   <span>{lesson.title}</span>
-                  <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteLessonMutation.mutate(lesson.id)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+                  <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-6 w-6 text-destructive"><Trash2 className="h-3 w-3" /></Button>} title="Delete Lesson?" description="This lesson will be permanently deleted." onConfirm={() => deleteLessonMutation.mutate(lesson.id)} />
                 </div>
               ))}
             </div>
@@ -463,7 +460,7 @@ function ExamsTab() {
                     <Button size="sm" variant="outline" onClick={() => setManagingExamId(managingExamId === exam.id ? null : exam.id)}>
                       <FileQuestion className="h-4 w-4 mr-1" /> Questions
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteMutation.mutate(exam.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>} title="Delete Exam?" description="This will permanently delete this exam and all its questions." onConfirm={() => deleteMutation.mutate(exam.id)} />
                   </div>
                 </div>
               ))}
@@ -615,7 +612,7 @@ function ExamQuestionsManager({ examId }: { examId: string }) {
                 ))}
               </div>
             </div>
-            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive shrink-0" onClick={() => deleteMutation.mutate(q.id)}><Trash2 className="h-3 w-3" /></Button>
+            <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-6 w-6 text-destructive shrink-0"><Trash2 className="h-3 w-3" /></Button>} title="Delete Question?" description="This question will be permanently deleted." onConfirm={() => deleteMutation.mutate(q.id)} />
           </div>
         ))}
         {!questions?.length && !adding && <p className="text-center text-sm text-muted-foreground py-4">No questions yet</p>}
@@ -780,9 +777,7 @@ function PracticalsTab() {
                       <Button size="sm" variant="destructive" onClick={() => updateMutation.mutate({ id: p.id, status: "failed" })}>Fail</Button>
                     </>
                   )}
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteMutation.mutate(p.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>} title="Delete Practical?" description="This practical assignment will be permanently deleted." onConfirm={() => deleteMutation.mutate(p.id)} />
                 </div>
               </div>
             ))}
