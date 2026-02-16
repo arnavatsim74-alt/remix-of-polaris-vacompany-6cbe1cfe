@@ -10,9 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, Users, Search, Edit } from "lucide-react";
+import { Shield, Users, Search, Edit, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 const rankOptions = [
@@ -28,6 +28,7 @@ export default function AdminMembers() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [editingPilot, setEditingPilot] = useState<any>(null);
+  const [deletingPilot, setDeletingPilot] = useState<any>(null);
   const [editForm, setEditForm] = useState({
     full_name: "",
     pid: "",
@@ -71,7 +72,6 @@ export default function AdminMembers() {
         .eq("id", pilotData.id);
       if (error) throw error;
 
-      // Handle admin role
       const hasAdminRole = adminRoles?.some((r: any) => r.user_id === pilotData.user_id);
       if (pilotData.isAdmin && !hasAdminRole) {
         const { error: roleError } = await supabase.from("user_roles").insert({
@@ -95,6 +95,32 @@ export default function AdminMembers() {
       setEditingPilot(null);
     },
     onError: () => toast.error("Failed to update member"),
+  });
+
+  const deletePilotMutation = useMutation({
+    mutationFn: async (pilot: any) => {
+      // Delete related records first
+      await supabase.from("pireps").delete().eq("pilot_id", pilot.id);
+      await supabase.from("academy_enrollments").delete().eq("pilot_id", pilot.id);
+      await supabase.from("academy_lesson_progress").delete().eq("pilot_id", pilot.id);
+      await supabase.from("academy_exam_attempts").delete().eq("pilot_id", pilot.id);
+      await supabase.from("academy_practicals").delete().eq("pilot_id", pilot.id);
+      await supabase.from("event_registrations").delete().eq("pilot_id", pilot.id);
+      await supabase.from("challenge_completions").delete().eq("pilot_id", pilot.id);
+      await supabase.from("pilot_streaks").delete().eq("pilot_id", pilot.id);
+      await supabase.from("pilot_bonus_cards").delete().eq("pilot_id", pilot.id);
+      await supabase.from("user_roles").delete().eq("user_id", pilot.user_id);
+      
+      const { error } = await supabase.from("pilots").delete().eq("id", pilot.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-pilots"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-roles"] });
+      toast.success("Member removed");
+      setDeletingPilot(null);
+    },
+    onError: () => toast.error("Failed to remove member"),
   });
 
   const openEdit = (pilot: any) => {
@@ -204,9 +230,14 @@ export default function AdminMembers() {
                           )}
                         </td>
                         <td className="py-3 px-2 text-right">
-                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(pilot)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(pilot)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setDeletingPilot(pilot)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -317,6 +348,27 @@ export default function AdminMembers() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingPilot(null)}>Cancel</Button>
             <Button onClick={handleSave} disabled={updatePilotMutation.isPending}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete / Kick Member Dialog */}
+      <Dialog open={!!deletingPilot} onOpenChange={(open) => !open && setDeletingPilot(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Remove Member
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove <strong>{deletingPilot?.full_name}</strong> ({deletingPilot?.pid})? This will delete all their PIREPs, enrollments, exam attempts, and other data. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingPilot(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deletePilotMutation.mutate(deletingPilot)} disabled={deletePilotMutation.isPending}>
+              Remove Member
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
