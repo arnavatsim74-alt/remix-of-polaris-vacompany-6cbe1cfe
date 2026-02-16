@@ -71,7 +71,6 @@ export default function AdminBonusTiers() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this tier?")) return;
     await supabase.from("bonus_tiers").delete().eq("id", id);
     queryClient.invalidateQueries({ queryKey: ["bonus-tiers"] });
     toast.success("Tier deleted");

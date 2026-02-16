@@ -37,9 +37,11 @@ import AdminAnnouncements from "@/pages/admin/AdminAnnouncements";
 import AdminSidebarLinks from "@/pages/admin/AdminSidebarLinks";
 import AdminAcademy from "@/pages/admin/AdminAcademy";
 import AdminBonusTiers from "@/pages/admin/AdminBonusTiers";
+import AdminActivity from "@/pages/admin/AdminActivity";
 import Academy from "@/pages/Academy";
 import AcademyCourse from "@/pages/AcademyCourse";
 import AcademyExam from "@/pages/AcademyExam";
+import ActivityPage from "@/pages/Activity";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -70,6 +72,7 @@ const App = () => (
                 <Route path="academy" element={<Academy />} />
                 <Route path="academy/course/:courseId" element={<AcademyCourse />} />
                 <Route path="academy/exam/:examId" element={<AcademyExam />} />
+                <Route path="activity" element={<ActivityPage />} />
                 <Route path="admin/pireps" element={<AdminPireps />} />
                 <Route path="admin/routes" element={<AdminRoutes />} />
                 <Route path="admin/rotw" element={<AdminROTW />} />
@@ -86,6 +89,7 @@ const App = () => (
                 <Route path="admin/sidebar-links" element={<AdminSidebarLinks />} />
                 <Route path="admin/academy" element={<AdminAcademy />} />
                 <Route path="admin/bonus-tiers" element={<AdminBonusTiers />} />
+                <Route path="admin/activity" element={<AdminActivity />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

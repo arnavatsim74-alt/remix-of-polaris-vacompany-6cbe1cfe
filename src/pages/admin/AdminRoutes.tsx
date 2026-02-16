@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Upload, Plus, Trash2, Route, Download } from "lucide-react";
 import { toast } from "sonner";
 import { RouteImportMapping } from "@/components/admin/RouteImportMapping";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface ParsedRoute {
   route_number: string;
@@ -575,14 +576,16 @@ export default function AdminRoutes() {
                         </Badge>
                       </td>
                       <td className="py-3 px-2 text-right">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => deleteRouteMutation.mutate(route.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <ConfirmDialog
+                          trigger={
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          }
+                          title="Delete Route?"
+                          description={`Route ${route.route_number} will be permanently deleted.`}
+                          onConfirm={() => deleteRouteMutation.mutate(route.id)}
+                        />
                       </td>
                     </tr>
                   ))}

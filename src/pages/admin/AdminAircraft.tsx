@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -280,9 +281,7 @@ export default function AdminAircraft() {
                           }}>
                             <Plus className="h-4 w-4" />
                           </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => deleteMutation.mutate(ac.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>} title="Delete Aircraft?" description="This aircraft will be permanently deleted." onConfirm={() => deleteMutation.mutate(ac.id)} />
                         </div>
                       </td>
                     </tr>
