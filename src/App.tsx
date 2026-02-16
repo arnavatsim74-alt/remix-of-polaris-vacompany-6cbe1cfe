@@ -36,6 +36,7 @@ import AdminChallenges from "@/pages/admin/AdminChallenges";
 import AdminAnnouncements from "@/pages/admin/AdminAnnouncements";
 import AdminSidebarLinks from "@/pages/admin/AdminSidebarLinks";
 import AdminAcademy from "@/pages/admin/AdminAcademy";
+import AdminBonusTiers from "@/pages/admin/AdminBonusTiers";
 import Academy from "@/pages/Academy";
 import AcademyCourse from "@/pages/AcademyCourse";
 import AcademyExam from "@/pages/AcademyExam";
@@ -84,6 +85,7 @@ const App = () => (
                 <Route path="admin/announcements" element={<AdminAnnouncements />} />
                 <Route path="admin/sidebar-links" element={<AdminSidebarLinks />} />
                 <Route path="admin/academy" element={<AdminAcademy />} />
+                <Route path="admin/bonus-tiers" element={<AdminBonusTiers />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

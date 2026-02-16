@@ -101,7 +101,8 @@ export default function AuthPage() {
 
       {/* Right side - Login form (narrower) */}
       <div className="flex-1 flex flex-col lg:w-2/5">
-        <div className="flex justify-end p-4">
+        <div className="flex items-center justify-between p-4">
+          <img src={vacompanyLogo} alt="VACompany" className="h-10 w-auto object-contain opacity-80" />
           <ThemeToggle />
         </div>
         
@@ -158,10 +159,9 @@ export default function AuthPage() {
           </Card>
         </div>
 
-        {/* Powered by VACompany */}
-        <div className="flex items-center justify-center gap-2 pb-4 opacity-60">
-          <span className="text-xs text-muted-foreground">Powered by</span>
-          <img src={vacompanyLogo} alt="VACompany" className="h-5 w-auto object-contain" />
+        {/* VACompany branding */}
+        <div className="flex items-center justify-center pb-4 opacity-70">
+          <img src={vacompanyLogo} alt="VACompany" className="h-8 w-auto object-contain" />
         </div>
       </div>
     </div>
