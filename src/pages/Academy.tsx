@@ -102,28 +102,23 @@ export default function Academy() {
       {enrollments && enrollments.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">My Courses</h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
             {enrollments.map(enrollment => {
               const course = courses?.find(c => c.id === enrollment.course_id);
               if (!course) return null;
               const prog = getCourseProgress(course.id);
               return (
                 <Card key={enrollment.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/academy/course/${course.id}`)}>
-                  {course.thumbnail_url && (
-                    <div className="h-32 overflow-hidden rounded-t-lg">
-                      <img src={course.thumbnail_url} alt={course.title} className="w-full h-full object-cover" />
-                    </div>
-                  )}
-                  <CardHeader className="pb-2">
+                  <CardHeader className="pb-2 pt-4 px-4">
                     <div className="flex items-center justify-between">
-                      <Badge variant="secondary">{categoryLabels[course.category] || course.category}</Badge>
+                      <Badge variant="secondary" className="text-xs">{categoryLabels[course.category] || course.category}</Badge>
                       {enrollment.status === "completed" && <CheckCircle className="h-4 w-4 text-green-500" />}
                     </div>
-                    <CardTitle className="text-base line-clamp-1">{course.title}</CardTitle>
+                    <CardTitle className="text-sm line-clamp-1">{course.title}</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    <Progress value={prog} className="h-2" />
-                    <p className="text-xs text-muted-foreground">{prog}% complete</p>
+                  <CardContent className="space-y-1 px-4 pb-4">
+                    <Progress value={prog} className="h-1.5" />
+                    <p className="text-xs text-muted-foreground">{prog}%</p>
                   </CardContent>
                 </Card>
               );
@@ -140,36 +135,28 @@ export default function Academy() {
             {[1, 2, 3].map(i => <Skeleton key={i} className="h-60" />)}
           </div>
         ) : courses && courses.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
             {courses.map(course => {
               const enrolled = isEnrolled(course.id);
               return (
                 <Card key={course.id} className="overflow-hidden">
-                  {course.thumbnail_url ? (
-                    <div className="h-36 overflow-hidden">
-                      <img src={course.thumbnail_url} alt={course.title} className="w-full h-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className="h-36 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                      <BookOpen className="h-12 w-12 text-primary/30" />
-                    </div>
-                  )}
-                  <CardHeader>
+                  <CardHeader className="pt-4 px-4 pb-2">
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{categoryLabels[course.category] || course.category}</Badge>
-                      {course.is_required && <Badge variant="destructive">Required</Badge>}
+                      <Badge variant="secondary" className="text-xs">{categoryLabels[course.category] || course.category}</Badge>
+                      {course.is_required && <Badge variant="destructive" className="text-xs">Required</Badge>}
                     </div>
-                    <CardTitle className="text-base">{course.title}</CardTitle>
-                    <CardDescription className="line-clamp-2">{course.description || "No description"}</CardDescription>
+                    <CardTitle className="text-sm">{course.title}</CardTitle>
+                    <CardDescription className="line-clamp-2 text-xs">{course.description || "No description"}</CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="px-4 pb-4">
                     <Button
                       className="w-full"
+                      size="sm"
                       variant={enrolled ? "outline" : "default"}
                       onClick={() => navigate(`/academy/course/${course.id}`)}
                     >
                       {enrolled ? "Continue" : "View Course"}
-                      <ArrowRight className="h-4 w-4 ml-2" />
+                      <ArrowRight className="h-3 w-3 ml-1" />
                     </Button>
                   </CardContent>
                 </Card>

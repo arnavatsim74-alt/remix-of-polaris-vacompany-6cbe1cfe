@@ -48,11 +48,8 @@ export default function AdminRoutes() {
   const { data: routes, isLoading } = useQuery({
     queryKey: ["admin-routes"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("routes")
-        .select("*")
-        .order("route_number");
-      return data || [];
+      const { fetchAllRows } = await import("@/lib/fetchAllRows");
+      return fetchAllRows("routes", { orderColumn: "route_number" });
     },
   });
 

@@ -214,7 +214,7 @@ function CoursesTab() {
 function CourseContentManager({ courseId }: { courseId: string }) {
   const queryClient = useQueryClient();
   const [moduleForm, setModuleForm] = useState({ title: "", description: "", sort_order: 0 });
-  const [lessonForm, setLessonForm] = useState({ title: "", content: "", video_url: "", sort_order: 0, module_id: "" });
+  const [lessonForm, setLessonForm] = useState({ title: "", content: "", video_url: "", image_url: "", sort_order: 0, module_id: "" });
   const [addingModule, setAddingModule] = useState(false);
   const [addingLesson, setAddingLesson] = useState<string | null>(null);
 
@@ -266,16 +266,17 @@ function CourseContentManager({ courseId }: { courseId: string }) {
         title: lessonForm.title,
         content: lessonForm.content,
         video_url: lessonForm.video_url || null,
+        image_url: (lessonForm as any).image_url || null,
         sort_order: lessonForm.sort_order,
         module_id: lessonForm.module_id,
-      });
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-lessons", courseId] });
       toast.success("Lesson added");
       setAddingLesson(null);
-      setLessonForm({ title: "", content: "", video_url: "", sort_order: 0, module_id: "" });
+      setLessonForm({ title: "", content: "", video_url: "", image_url: "", sort_order: 0, module_id: "" });
     },
   });
 
@@ -323,10 +324,11 @@ function CourseContentManager({ courseId }: { courseId: string }) {
               </div>
             </div>
             {addingLesson === mod.id && (
-              <div className="pl-4 p-3 border-l-2 space-y-2">
+            <div className="pl-4 p-3 border-l-2 space-y-2">
                 <Input placeholder="Lesson title" value={lessonForm.title} onChange={e => setLessonForm({ ...lessonForm, title: e.target.value })} />
                 <Textarea placeholder="Lesson content (markdown)" value={lessonForm.content} onChange={e => setLessonForm({ ...lessonForm, content: e.target.value })} rows={4} />
                 <Input placeholder="Video URL (optional)" value={lessonForm.video_url} onChange={e => setLessonForm({ ...lessonForm, video_url: e.target.value })} />
+                <Input placeholder="Image URL (optional)" value={(lessonForm as any).image_url || ""} onChange={e => setLessonForm({ ...lessonForm, image_url: e.target.value } as any)} />
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => addLessonMutation.mutate()}>Save Lesson</Button>
                   <Button size="sm" variant="outline" onClick={() => setAddingLesson(null)}>Cancel</Button>

@@ -117,6 +117,11 @@ export default function FilePirep() {
       toast.error("Please fill in all required fields"); return;
     }
 
+    // Check aircraft is unlocked for the pilot (unless event/ROTW)
+    if (!isEventOrRotw && unlockedAircraftIcaos && !unlockedAircraftIcaos.includes(aircraftIcao)) {
+      toast.error("This aircraft is not unlocked for your rank"); return;
+    }
+
     const hours = parseFloat(flightHours);
     if (isNaN(hours) || hours <= 0 || hours > 24) {
       toast.error("Please enter valid flight hours (0-24)"); return;

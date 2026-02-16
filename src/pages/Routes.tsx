@@ -2,13 +2,15 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Route, Search, Plane, FileText } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Route, Search, Plane, FileText, Lock } from "lucide-react";
 
 const rankLabels: Record<string, string> = {
   cadet: "Cadet",
@@ -19,21 +21,40 @@ const rankLabels: Record<string, string> = {
 };
 
 export default function RoutesPage() {
+  const { pilot } = useAuth();
   const navigate = useNavigate();
   const [depFilter, setDepFilter] = useState("");
   const [arrFilter, setArrFilter] = useState("");
   const [aircraftFilter, setAircraftFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
+  // Rank order for comparison
+  const rankOrder = ["cadet", "first_officer", "captain", "senior_captain", "commander"];
+
+  const { data: rankConfigs } = useQuery({
+    queryKey: ["rank-configs-all"],
+    queryFn: async () => {
+      const { data } = await supabase.from("rank_configs").select("*").eq("is_active", true).order("order_index");
+      return data || [];
+    },
+  });
+
+  const pilotRankIndex = rankOrder.indexOf(pilot?.current_rank || "cadet");
+
+  const canFlyRoute = (minRank: string | null) => {
+    if (!minRank) return true;
+    const routeRankIndex = rankOrder.indexOf(minRank);
+    return pilotRankIndex >= routeRankIndex;
+  };
+
   const { data: routes, isLoading } = useQuery({
     queryKey: ["routes"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("routes")
-        .select("*")
-        .eq("is_active", true)
-        .order("route_number");
-      return data || [];
+      const { fetchAllRows } = await import("@/lib/fetchAllRows");
+      return fetchAllRows("routes", {
+        filters: (q: any) => q.eq("is_active", true),
+        orderColumn: "route_number",
+      });
     },
   });
 
@@ -214,14 +235,30 @@ export default function RoutesPage() {
                         {route.notes || "-"}
                       </td>
                       <td className="py-3 px-2 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleFilePirep(route)}
-                        >
-                          <FileText className="h-3 w-3 mr-1" />
-                          File PIREP
-                        </Button>
+                        {canFlyRoute(route.min_rank) ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleFilePirep(route)}
+                          >
+                            <FileText className="h-3 w-3 mr-1" />
+                            File PIREP
+                          </Button>
+                        ) : (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="sm" variant="outline" disabled>
+                                  <Lock className="h-3 w-3 mr-1" />
+                                  Locked
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Requires {rankLabels[route.min_rank || ""] || route.min_rank} rank</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </td>
                     </tr>
                   ))}
