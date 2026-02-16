@@ -3,13 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ArrowLeft, BookOpen, CheckCircle, Circle, PlayCircle, ClipboardCheck, GraduationCap } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle, Circle, ClipboardCheck, GraduationCap, Plane, Calendar } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AcademyCourse() {
@@ -76,6 +76,22 @@ export default function AcademyCourse() {
       return data || [];
     },
     enabled: !!courseId,
+  });
+
+  // Fetch practicals assigned to this pilot for this course
+  const { data: practicals } = useQuery({
+    queryKey: ["academy-practicals-pilot", pilot?.id, courseId],
+    queryFn: async () => {
+      if (!pilot?.id) return [];
+      const { data } = await supabase
+        .from("academy_practicals")
+        .select("*, academy_courses(title)")
+        .eq("pilot_id", pilot.id)
+        .eq("course_id", courseId!)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!pilot?.id && !!courseId,
   });
 
   const enrollMutation = useMutation({
@@ -209,6 +225,37 @@ export default function AcademyCourse() {
               </CardContent>
             </Card>
           )}
+
+          {/* Assigned Practicals */}
+          {practicals && practicals.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Plane className="h-4 w-4" />
+                  Assigned Practicals
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {practicals.map((p: any) => (
+                  <div key={p.id} className="p-2 rounded-md border text-sm space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Badge variant={p.status === "passed" ? "default" : p.status === "failed" ? "destructive" : "secondary"}>
+                        {p.status}
+                      </Badge>
+                      {p.scheduled_at && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(p.scheduled_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                    {p.notes && <p className="text-xs text-muted-foreground italic">{p.notes}</p>}
+                    {p.result_notes && <p className="text-xs text-muted-foreground">Result: {p.result_notes}</p>}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Main Content Area */}
@@ -222,6 +269,11 @@ export default function AcademyCourse() {
                 {currentLesson.video_url && (
                   <div className="aspect-video rounded-lg overflow-hidden bg-muted">
                     <iframe src={currentLesson.video_url} className="w-full h-full" allowFullScreen />
+                  </div>
+                )}
+                {(currentLesson as any).image_url && (
+                  <div className="rounded-lg overflow-hidden border">
+                    <img src={(currentLesson as any).image_url} alt={currentLesson.title} className="w-full h-auto object-contain max-h-[500px]" />
                   </div>
                 )}
                 <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">

@@ -266,6 +266,7 @@ export type Database = {
           content: string | null
           created_at: string | null
           id: string
+          image_url: string | null
           module_id: string
           sort_order: number | null
           title: string
@@ -275,6 +276,7 @@ export type Database = {
           content?: string | null
           created_at?: string | null
           id?: string
+          image_url?: string | null
           module_id: string
           sort_order?: number | null
           title: string
@@ -284,6 +286,7 @@ export type Database = {
           content?: string | null
           created_at?: string | null
           id?: string
+          image_url?: string | null
           module_id?: string
           sort_order?: number | null
           title?: string
