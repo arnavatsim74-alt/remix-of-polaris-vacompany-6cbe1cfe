@@ -20,6 +20,7 @@ interface AuthContextType {
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithDiscord: (redirectPath?: string, mode?: "login" | "register") => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshPilot: () => Promise<void>;
 }
@@ -130,13 +131,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error };
+
+    const userId = data.user?.id;
+    if (!userId) return { error: new Error("Could not verify your user account") };
+
+    const { data: pilotData, error: pilotError } = await supabase
+      .from("pilots")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (pilotError) {
+      return { error: new Error("Could not verify application approval. Please try again.") };
+    }
+
+    if (!pilotData) {
+      await supabase.auth.signOut();
+      return { error: new Error("Your application is still pending admin approval.") };
+    }
+
+    return { error: null };
   };
 
   const signUp = async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
     const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectUrl } });
+    return { error };
+  };
+
+
+  const signInWithDiscord = async (redirectPath = "/", mode: "login" | "register" = "login") => {
+    const hasQuery = redirectPath.includes("?");
+    const flowParam = `oauth=${mode}`;
+    const redirectPathWithFlow = redirectPath.includes("oauth=")
+      ? redirectPath
+      : `${redirectPath}${hasQuery ? "&" : "?"}${flowParam}`;
+    const redirectTo = `${window.location.origin}${redirectPathWithFlow}`;
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "discord",
+      options: { redirectTo },
+    });
     return { error };
   };
 
@@ -147,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, pilot, isAdmin, isLoading, signIn, signUp, signOut, refreshPilot }}>
+    <AuthContext.Provider value={{ user, session, pilot, isAdmin, isLoading, signIn, signUp, signInWithDiscord, signOut, refreshPilot }}>
       {children}
     </AuthContext.Provider>
   );
