@@ -114,7 +114,6 @@ export default function AdminSettings() {
   const heroUrl = getSetting("dashboard_hero_url");
   const sidebarLogoUrl = getSetting("sidebar_logo_url");
   const authLogoUrl = getSetting("auth_logo_url");
-  const vaLogoUrl = getSetting("va_logo_url");
 
   const ImageUploadCard = ({ title, desc, settingKey, fileName, currentUrl, previewAlt }: {
     title: string; desc: string; settingKey: string; fileName: string; currentUrl: string; previewAlt: string;
@@ -168,10 +167,6 @@ export default function AdminSettings() {
         </div>
       </div>
 
-      {/* VA Logo */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <ImageUploadCard title="VA Logo" desc="Logo shown in the header bar (replaces VACompany logo)" settingKey="va_logo_url" fileName="va-logo" currentUrl={vaLogoUrl} previewAlt="VA logo" />
-      </div>
 
       {/* Logo Management */}
       <div className="grid gap-6 md:grid-cols-2">
@@ -195,7 +190,7 @@ export default function AdminSettings() {
           <Input
             value={trackerUrl}
             onChange={(e) => { setTrackerUrl(e.target.value); setTrackerDirty(true); }}
-            placeholder="https://aflv-tracker.lovable.app/"
+            placeholder="https://ramva-tracker.lovable.app/"
           />
           <Button onClick={async () => { await saveSetting("tracker_embed_url", trackerUrl); setTrackerDirty(false); toast.success("Tracker URL saved"); }} disabled={!trackerDirty}>
             <Save className="h-4 w-4 mr-2" />Save

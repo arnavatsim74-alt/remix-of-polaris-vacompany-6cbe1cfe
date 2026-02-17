@@ -71,3 +71,46 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Supabase migration troubleshooting (notifications/replays/min-rank)
+
+Use the unified migration:
+
+- `supabase/migrations/20260217143000_academy_notifications_and_permissions_unified.sql`
+
+It is idempotent and includes:
+- notifications table + RLS policies,
+- practical replay/min-rank columns,
+- practical completion + replay upload permissions,
+- DB-level assignment notifications for practicals and exams.
+
+## Discord OAuth setup (Vite + Supabase)
+
+This project is a **Vite SPA** (not Next.js), so you do **not** need `app/auth/callback/route.ts`.
+Supabase handles the OAuth callback at its own endpoint.
+
+Use these values:
+
+- **Discord OAuth2 Redirect URL** (in Discord Developer Portal):
+  - `https://<your-project-ref>.supabase.co/auth/v1/callback`
+- **Supabase Auth > URL Configuration > Site URL**:
+  - `https://ramva-vacompany.vercel.app`
+- **Supabase Auth > URL Configuration > Additional Redirect URLs**:
+  - `https://ramva-vacompany.vercel.app/*`
+  - `http://localhost:5173/*` (for local dev)
+
+The app uses:
+- `/auth` for Discord sign-in
+- `/apply` for Discord registration
+
+On Discord registration, if the user signed in via Discord and has no application yet, the app auto-creates a row in `pilot_applications` with the Discord email/name so admins can review it in Applications.
+
+### About `522 Connection timed out` on `*.supabase.co`
+
+A `522` means Cloudflare couldn't reach the Supabase origin at that moment (provider/network outage), not a bad app route.
+
+Try:
+- Re-test after a few minutes.
+- Check [Supabase status](https://status.supabase.com/).
+- Retry with another network/VPN.
+- Confirm your `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correct in Vercel env vars.

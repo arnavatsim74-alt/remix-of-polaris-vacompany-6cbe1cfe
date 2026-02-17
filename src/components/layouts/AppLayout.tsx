@@ -3,21 +3,13 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layouts/AppSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
+import { NotificationBell } from "@/components/NotificationBell";
 import vacompanyLogo from "@/assets/vacompany-logo.svg";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { VACOMPANY_URL } from "@/lib/branding";
+import { PolarisFooter } from "@/components/PolarisFooter";
 
 export function AppLayout() {
-  const { data: vaLogoUrl } = useQuery({
-    queryKey: ["site-settings-va-logo"],
-    queryFn: async () => {
-      const { data } = await supabase.from("site_settings").select("value").eq("key", "va_logo_url").maybeSingle();
-      return data?.value || "";
-    },
-    staleTime: Infinity,
-  });
-
-  const headerLogo = vaLogoUrl || vacompanyLogo;
+  const headerLogo = vacompanyLogo;
 
   return (
     <SidebarProvider>
@@ -29,7 +21,14 @@ export function AppLayout() {
             <div className="flex h-full items-center gap-4 px-4">
               <SidebarTrigger className="-ml-1" />
               <div className="flex-1" />
-              <img src={headerLogo} alt="VA Logo" className="h-8 w-auto object-contain opacity-80" />
+              <a href={VACOMPANY_URL} target="_blank" rel="noopener noreferrer" aria-label="Visit VACompany">
+                <img
+                  src={headerLogo}
+                  alt="VA Logo"
+                  className="h-8 w-auto object-contain opacity-80 invert dark:invert-0"
+                />
+              </a>
+              <NotificationBell />
               <ThemeToggle />
               <UserMenu />
             </div>
@@ -41,6 +40,7 @@ export function AppLayout() {
               <Outlet />
             </div>
           </main>
+          <PolarisFooter />
         </div>
       </div>
     </SidebarProvider>
