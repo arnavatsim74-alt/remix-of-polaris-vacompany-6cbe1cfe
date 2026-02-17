@@ -346,6 +346,7 @@ export type Database = {
           id: string
           notes: string | null
           pilot_id: string
+          replay_file_url: string | null
           result_notes: string | null
           scheduled_at: string | null
           status: string | null
@@ -358,6 +359,8 @@ export type Database = {
           id?: string
           notes?: string | null
           pilot_id: string
+          replay_file_url?: string | null
+          replay_file_url?: string | null
           result_notes?: string | null
           scheduled_at?: string | null
           status?: string | null
@@ -370,6 +373,7 @@ export type Database = {
           id?: string
           notes?: string | null
           pilot_id?: string
+          replay_file_url?: string | null
           result_notes?: string | null
           scheduled_at?: string | null
           status?: string | null
@@ -445,6 +449,7 @@ export type Database = {
           image_url: string | null
           livery: string | null
           min_hours: number | null
+          min_rank: Database["public"]["Enums"]["pilot_rank"] | null
           name: string
           passenger_capacity: number | null
           range_nm: number | null
@@ -458,6 +463,7 @@ export type Database = {
           image_url?: string | null
           livery?: string | null
           min_hours?: number | null
+          min_rank?: Database["public"]["Enums"]["pilot_rank"] | null
           name: string
           passenger_capacity?: number | null
           range_nm?: number | null
@@ -471,6 +477,7 @@ export type Database = {
           image_url?: string | null
           livery?: string | null
           min_hours?: number | null
+          min_rank?: Database["public"]["Enums"]["pilot_rank"] | null
           name?: string
           passenger_capacity?: number | null
           range_nm?: number | null
@@ -1021,6 +1028,50 @@ export type Database = {
             foreignKeyName: "pilot_streaks_pilot_id_fkey"
             columns: ["pilot_id"]
             isOneToOne: true
+            referencedRelation: "pilots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          recipient_pilot_id: string
+          related_entity: string | null
+          related_id: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          recipient_pilot_id: string
+          related_entity?: string | null
+          related_id?: string | null
+          title: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          recipient_pilot_id?: string
+          related_entity?: string | null
+          related_id?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_recipient_pilot_id_fkey"
+            columns: ["recipient_pilot_id"]
+            isOneToOne: false
             referencedRelation: "pilots"
             referencedColumns: ["id"]
           },

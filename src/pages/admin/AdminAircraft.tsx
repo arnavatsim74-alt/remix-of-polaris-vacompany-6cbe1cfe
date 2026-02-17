@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,7 +20,7 @@ interface AircraftForm {
   name: string;
   type: string;
   livery: string;
-  min_hours: number;
+  min_rank: string;
   passenger_capacity: number | null;
   cargo_capacity_kg: number | null;
   range_nm: number | null;
@@ -29,7 +28,7 @@ interface AircraftForm {
 }
 
 const emptyForm: AircraftForm = {
-  icao_code: "", name: "", type: "passenger", livery: "", min_hours: 0,
+  icao_code: "", name: "", type: "passenger", livery: "", min_rank: "cadet",
   passenger_capacity: null, cargo_capacity_kg: null, range_nm: null, image_url: "",
 };
 
@@ -64,7 +63,7 @@ export default function AdminAircraft() {
         name: data.name,
         type: data.type,
         livery: data.livery || null,
-        min_hours: data.min_hours,
+        min_rank: data.min_rank || null,
         passenger_capacity: data.passenger_capacity,
         cargo_capacity_kg: data.cargo_capacity_kg,
         range_nm: data.range_nm,
@@ -107,7 +106,7 @@ export default function AdminAircraft() {
       name: ac.name,
       type: ac.type,
       livery: ac.livery || "",
-      min_hours: ac.min_hours || 0,
+      min_rank: (ac as any).min_rank || "cadet",
       passenger_capacity: ac.passenger_capacity,
       cargo_capacity_kg: ac.cargo_capacity_kg,
       range_nm: ac.range_nm,
@@ -178,8 +177,15 @@ export default function AdminAircraft() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Minimum Hours (Unlockable at)</Label>
-                <Input type="number" value={form.min_hours} onChange={(e) => setForm({ ...form, min_hours: parseInt(e.target.value) || 0 })} />
+                <Label>Minimum Rank Required</Label>
+                <Select value={form.min_rank} onValueChange={(v) => setForm({ ...form, min_rank: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(ranks || []).map((r: any) => (
+                      <SelectItem key={r.name} value={r.name}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
@@ -236,7 +242,7 @@ export default function AdminAircraft() {
                     <th className="text-left py-3 px-2 font-medium">Code</th>
                     <th className="text-left py-3 px-2 font-medium">Livery</th>
                     <th className="text-left py-3 px-2 font-medium">Type</th>
-                    <th className="text-left py-3 px-2 font-medium">Min Hours</th>
+                    <th className="text-left py-3 px-2 font-medium">Min Rank</th>
                     <th className="text-left py-3 px-2 font-medium">PAX/Cargo</th>
                     <th className="text-left py-3 px-2 font-medium">Range</th>
                     <th className="text-right py-3 px-2 font-medium">Actions</th>
@@ -253,7 +259,7 @@ export default function AdminAircraft() {
                       <td className="py-3 px-2">
                         <Badge variant="secondary" className="capitalize">{ac.type}</Badge>
                       </td>
-                      <td className="py-3 px-2">{ac.min_hours || 0}h</td>
+                      <td className="py-3 px-2 capitalize">{((ac as any).min_rank || "cadet").replace("_", " ")}</td>
                       <td className="py-3 px-2">
                         {ac.type === "cargo" ? (ac.cargo_capacity_kg ? `${ac.cargo_capacity_kg} kg` : "-") : (ac.passenger_capacity ? `${ac.passenger_capacity} pax` : "-")}
                       </td>
@@ -271,7 +277,7 @@ export default function AdminAircraft() {
                               name: ac.name,
                               type: ac.type,
                               livery: "",
-                              min_hours: ac.min_hours || 0,
+                              min_rank: (ac as any).min_rank || "cadet",
                               passenger_capacity: ac.passenger_capacity,
                               cargo_capacity_kg: ac.cargo_capacity_kg,
                               range_nm: ac.range_nm,
