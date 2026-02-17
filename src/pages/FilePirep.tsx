@@ -86,20 +86,31 @@ export default function FilePirep() {
 
   // Get unlocked aircraft for pilot's current rank
   const unlockedAircraftIcaos = (() => {
-    if (!rankConfigs || !pilot?.current_rank) return null; // null = no restrictions configured
+    if (!rankConfigs || !pilot?.current_rank) return null;
     const pilotRank = rankConfigs.find(r => r.name === pilot.current_rank);
     if (!pilotRank) return null;
-    // Collect all aircraft unlocked up to and including the pilot's rank
-    const unlocked: string[] = [];
+
+    const allowedByRankOrder = new Set(
+      rankConfigs.filter(r => r.order_index <= pilotRank.order_index).map(r => r.name)
+    );
+
+    const unlocked = new Set<string>();
     for (const rank of rankConfigs) {
       if (rank.order_index <= pilotRank.order_index) {
         const ac = (rank as any).aircraft_unlocks;
-        if (ac && Array.isArray(ac)) {
-          unlocked.push(...ac);
-        }
+        if (Array.isArray(ac)) ac.forEach((i: string) => unlocked.add(String(i).trim().toUpperCase()));
       }
     }
-    return unlocked.length > 0 ? unlocked : null; // null means no restrictions
+
+    // Also allow aircraft that are open by min_rank in aircraft table.
+    for (const ac of aircraft || []) {
+      const minRank = (ac as any).min_rank as string | null;
+      if (!minRank || allowedByRankOrder.has(minRank)) {
+        unlocked.add((ac.icao_code || "").trim().toUpperCase());
+      }
+    }
+
+    return unlocked.size > 0 ? Array.from(unlocked) : null;
   })();
 
   // Get unique aircraft by icao_code (deduplicate for the dropdown)
@@ -115,7 +126,7 @@ export default function FilePirep() {
 
   const availableAircraft = getUniqueAircraft(
     (!isEventOrRotw && unlockedAircraftIcaos)
-      ? aircraft?.filter(ac => unlockedAircraftIcaos.includes(ac.icao_code))
+      ? aircraft?.filter(ac => unlockedAircraftIcaos.includes(ac.icao_code.toUpperCase()))
       : aircraft
   );
 
@@ -142,7 +153,7 @@ export default function FilePirep() {
     }
 
     // Check aircraft is unlocked for the pilot (unless event/ROTW)
-    if (!isEventOrRotw && unlockedAircraftIcaos && !unlockedAircraftIcaos.includes(aircraftIcao)) {
+    if (!isEventOrRotw && unlockedAircraftIcaos && !unlockedAircraftIcaos.includes(aircraftIcao.toUpperCase())) {
       toast.error("This aircraft is not unlocked for your rank"); return;
     }
 

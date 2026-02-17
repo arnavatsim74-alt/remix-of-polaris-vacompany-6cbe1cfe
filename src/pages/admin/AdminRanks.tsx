@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Plus, Trash2, Edit, Award } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 interface RankForm {
@@ -44,6 +45,15 @@ export default function AdminRanks() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<RankForm>(emptyForm);
+
+
+  const { data: aircraftOptions } = useQuery({
+    queryKey: ["aircraft-options"],
+    queryFn: async () => {
+      const { data } = await supabase.from("aircraft").select("icao_code, name").order("icao_code");
+      return data || [];
+    },
+  });
 
   const { data: ranks, isLoading } = useQuery({
     queryKey: ["admin-ranks"],
@@ -180,8 +190,25 @@ export default function AdminRanks() {
                 <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Short description" />
               </div>
               <div className="space-y-2">
-                <Label>Aircraft Unlocked (comma separated ICAO codes)</Label>
-                <Input value={form.aircraft_unlocks} onChange={(e) => setForm({ ...form, aircraft_unlocks: e.target.value })} placeholder="B738, A320, B77W" />
+                <Label>Aircraft Unlocked</Label>
+                <div className="border rounded-md p-2 max-h-44 overflow-y-auto space-y-2">
+                  {(aircraftOptions || []).map((ac: any) => {
+                    const selected = form.aircraft_unlocks.split(",").map((i) => i.trim()).filter(Boolean);
+                    return (
+                      <label key={ac.icao_code} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={selected.includes(ac.icao_code)}
+                          onCheckedChange={(checked) => {
+                            const set = new Set(selected);
+                            if (checked) set.add(ac.icao_code); else set.delete(ac.icao_code);
+                            setForm({ ...form, aircraft_unlocks: Array.from(set).join(", ") });
+                          }}
+                        />
+                        <span>{ac.icao_code} — {ac.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Perks Unlocked (comma separated)</Label>
