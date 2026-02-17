@@ -283,7 +283,7 @@ export default function FilePirep() {
                   <Select value={operator} onValueChange={setOperator} disabled={isLoading}>
                     <SelectTrigger><SelectValue placeholder="Select operator" /></SelectTrigger>
                     <SelectContent>
-                      {operators.map((op) => (
+                      {(operators || defaultOperators).map((op) => (
                         <SelectItem key={op} value={op}>{op}</SelectItem>
                       ))}
                     </SelectContent>
