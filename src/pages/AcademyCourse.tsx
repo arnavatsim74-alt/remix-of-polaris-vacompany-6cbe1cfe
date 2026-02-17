@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ArrowLeft, BookOpen, CheckCircle, Circle, ClipboardCheck, GraduationCap, Plane, Calendar } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle, Circle, ClipboardCheck, GraduationCap, Plane, Calendar, CheckSquare, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AcademyCourse() {
@@ -235,23 +235,9 @@ export default function AcademyCourse() {
                   Assigned Practicals
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+      <CardContent className="space-y-2">
                 {practicals.map((p: any) => (
-                  <div key={p.id} className="p-2 rounded-md border text-sm space-y-1">
-                    <div className="flex items-center justify-between">
-                      <Badge variant={p.status === "passed" ? "default" : p.status === "failed" ? "destructive" : "secondary"}>
-                        {p.status}
-                      </Badge>
-                      {p.scheduled_at && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(p.scheduled_at).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-                    {p.notes && <p className="text-xs text-muted-foreground italic">{p.notes}</p>}
-                    {p.result_notes && <p className="text-xs text-muted-foreground">Result: {p.result_notes}</p>}
-                  </div>
+                  <PracticalCard key={p.id} practical={p} pilotId={pilot?.id} />
                 ))}
               </CardContent>
             </Card>
@@ -302,6 +288,63 @@ export default function AcademyCourse() {
           )}
         </Card>
       </div>
+    </div>
+  );
+}
+
+/* ---- Practical Card with completion button ---- */
+function PracticalCard({ practical: p, pilotId }: { practical: any; pilotId?: string }) {
+  const queryClient = useQueryClient();
+
+  const markCompleteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("academy_practicals").update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+      }).eq("id", p.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["academy-practicals-pilot"] });
+      toast.success("Practical marked as completed!");
+    },
+    onError: () => toast.error("Failed to update practical"),
+  });
+
+  return (
+    <div className="p-2 rounded-md border text-sm space-y-1">
+      <div className="flex items-center justify-between">
+        <Badge variant={p.status === "passed" ? "default" : p.status === "failed" ? "destructive" : "secondary"}>
+          {p.status}
+        </Badge>
+        {p.scheduled_at && (
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Calendar className="h-3 w-3" />
+            {new Date(p.scheduled_at).toLocaleDateString()}
+          </span>
+        )}
+      </div>
+      {p.notes && <p className="text-xs text-muted-foreground italic">{p.notes}</p>}
+      {p.result_notes && (
+        <p className={`text-xs ${p.status === "failed" ? "text-destructive" : "text-muted-foreground"}`}>
+          {p.status === "failed" ? "Fail Reason" : "Result"}: {p.result_notes}
+        </p>
+      )}
+      {p.status === "passed" && (
+        <div className="flex items-center gap-1 text-xs text-green-600">
+          <CheckCircle className="h-3 w-3" /> Passed
+        </div>
+      )}
+      {p.status === "failed" && (
+        <div className="flex items-center gap-1 text-xs text-destructive">
+          <XCircle className="h-3 w-3" /> Failed
+        </div>
+      )}
+      {p.status === "scheduled" && (
+        <Button size="sm" variant="outline" className="w-full mt-1" onClick={() => markCompleteMutation.mutate()} disabled={markCompleteMutation.isPending}>
+          <CheckSquare className="h-3 w-3 mr-1" /> Mark as Completed
+        </Button>
+      )}
     </div>
   );
 }

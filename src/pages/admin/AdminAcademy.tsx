@@ -408,6 +408,17 @@ function ExamsTab() {
     },
   });
 
+  const togglePublishMutation = useMutation({
+    mutationFn: async ({ id, is_published }: { id: string; is_published: boolean }) => {
+      const { error } = await supabase.from("academy_exams").update({ is_published }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-academy-exams"] });
+      toast.success("Exam updated");
+    },
+  });
+
   return (
     <>
       <Card>
@@ -453,7 +464,14 @@ function ExamsTab() {
                     </div>
                     <p className="text-xs text-muted-foreground">{exam.academy_courses?.title} · {exam.passing_score}% pass · {exam.max_attempts} attempts</p>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 items-center">
+                    <div className="flex items-center gap-1 mr-2">
+                      <Switch
+                        checked={exam.is_published}
+                        onCheckedChange={(v) => togglePublishMutation.mutate({ id: exam.id, is_published: v })}
+                      />
+                      <span className="text-xs text-muted-foreground">{exam.is_published ? "Published" : "Draft"}</span>
+                    </div>
                     <Button size="sm" variant="outline" onClick={() => setViewingResultsExamId(viewingResultsExamId === exam.id ? null : exam.id)}>
                       <Eye className="h-4 w-4 mr-1" /> Results
                     </Button>
@@ -626,6 +644,8 @@ function PracticalsTab() {
   const queryClient = useQueryClient();
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [assignForm, setAssignForm] = useState({ pilot_id: "", course_id: "", notes: "", scheduled_at: "" });
+  const [failReasonId, setFailReasonId] = useState<string | null>(null);
+  const [failReason, setFailReason] = useState("");
 
   const { data: practicals, isLoading } = useQuery({
     queryKey: ["admin-practicals"],
@@ -771,12 +791,30 @@ function PracticalsTab() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={p.status === "passed" ? "default" : p.status === "failed" ? "destructive" : "secondary"}>{p.status}</Badge>
-                  {p.status === "scheduled" && (
+                  {(p.status === "scheduled" || p.status === "completed") && (
                     <>
                       <Button size="sm" variant="outline" onClick={() => updateMutation.mutate({ id: p.id, status: "passed" })}>Pass</Button>
-                      <Button size="sm" variant="destructive" onClick={() => updateMutation.mutate({ id: p.id, status: "failed" })}>Fail</Button>
+                      {failReasonId === p.id ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            placeholder="Fail reason..."
+                            value={failReason}
+                            onChange={e => setFailReason(e.target.value)}
+                            className="h-8 w-40 text-xs"
+                          />
+                          <Button size="sm" variant="destructive" onClick={() => {
+                            updateMutation.mutate({ id: p.id, status: "failed", result_notes: failReason });
+                            setFailReasonId(null);
+                            setFailReason("");
+                          }}>Confirm</Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setFailReasonId(null); setFailReason(""); }}>✕</Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" variant="destructive" onClick={() => setFailReasonId(p.id)}>Fail</Button>
+                      )}
                     </>
                   )}
+                  {p.result_notes && <span className="text-xs text-muted-foreground italic max-w-[150px] truncate">{p.result_notes}</span>}
                   <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>} title="Delete Practical?" description="This practical assignment will be permanently deleted." onConfirm={() => deleteMutation.mutate(p.id)} />
                 </div>
               </div>
