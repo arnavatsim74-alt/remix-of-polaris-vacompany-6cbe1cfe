@@ -14,8 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, Plus, Trash2, Edit, GraduationCap, BookOpen, ClipboardCheck, Users, FileQuestion, Plane, Eye } from "lucide-react";
+import { Shield, Plus, Trash2, Edit, GraduationCap, BookOpen, ClipboardCheck, Users, FileQuestion, Plane, Eye, Download } from "lucide-react";
 import { toast } from "sonner";
+import { sendNotification } from "@/lib/notifications";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function AdminAcademy() {
@@ -378,7 +379,7 @@ function ExamsTab() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("academy_exams").insert({
+      const { data: exam, error } = await supabase.from("academy_exams").insert({
         title: form.title,
         description: form.description,
         course_id: form.course_id,
@@ -386,8 +387,21 @@ function ExamsTab() {
         time_limit_minutes: form.time_limit_minutes || null,
         max_attempts: form.max_attempts,
         is_published: form.is_published,
-      });
+      }).select("id, title, course_id").single();
       if (error) throw error;
+
+      const { data: enrollments } = await supabase.from("academy_enrollments").select("pilot_id").eq("course_id", form.course_id);
+      if (exam && enrollments?.length) {
+        const rows = enrollments.map((e) => ({
+          recipient_pilot_id: e.pilot_id,
+          title: "New exam assigned",
+          message: `A new exam (${exam.title}) has been assigned in your academy course.`,
+          type: "exam_assigned",
+          related_entity: "academy_exam",
+          related_id: exam.id,
+        }));
+        await supabase.from("notifications").insert(rows as any);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-academy-exams"] });
@@ -682,14 +696,25 @@ function PracticalsTab() {
   const assignMutation = useMutation({
     mutationFn: async () => {
       if (!assignForm.pilot_id || !assignForm.course_id) throw new Error("Select pilot and course");
-      const { error } = await supabase.from("academy_practicals").insert({
+      const { data: inserted, error } = await supabase.from("academy_practicals").insert({
         pilot_id: assignForm.pilot_id,
         course_id: assignForm.course_id,
         notes: assignForm.notes || null,
         scheduled_at: assignForm.scheduled_at || null,
         status: "scheduled",
-      });
+      }).select("id, pilot_id, academy_courses(title)").single();
       if (error) throw error;
+
+      if (inserted?.pilot_id) {
+        await sendNotification({
+          recipientPilotId: inserted.pilot_id,
+          title: "New practical assigned",
+          message: `A practical has been assigned to you for ${inserted.academy_courses?.title || "an academy course"}.`,
+          type: "practical_assigned",
+          relatedEntity: "academy_practical",
+          relatedId: inserted.id,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-practicals"] });
@@ -708,6 +733,18 @@ function PracticalsTab() {
         completed_at: ["passed", "failed"].includes(status) ? new Date().toISOString() : null,
       }).eq("id", id);
       if (error) throw error;
+
+      const practical = practicals?.find((p: any) => p.id === id);
+      if (practical?.pilot_id && ["passed", "failed"].includes(status)) {
+        await sendNotification({
+          recipientPilotId: practical.pilot_id,
+          title: `Practical ${status}`,
+          message: `Your practical for ${practical.academy_courses?.title || "course"} was marked as ${status}.`,
+          type: "practical_status",
+          relatedEntity: "academy_practical",
+          relatedId: id,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-practicals"] });
@@ -815,6 +852,13 @@ function PracticalsTab() {
                     </>
                   )}
                   {p.result_notes && <span className="text-xs text-muted-foreground italic max-w-[150px] truncate">{p.result_notes}</span>}
+                  {p.replay_file_url && (
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={p.replay_file_url} target="_blank" rel="noreferrer">
+                        <Download className="h-3.5 w-3.5 mr-1" /> Replay
+                      </a>
+                    </Button>
+                  )}
                   <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>} title="Delete Practical?" description="This practical assignment will be permanently deleted." onConfirm={() => deleteMutation.mutate(p.id)} />
                 </div>
               </div>

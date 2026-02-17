@@ -71,3 +71,13 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Supabase migration troubleshooting (notifications/replays/min-rank)
+
+If you are applying the recent notifications + practical replay + aircraft rank migrations manually, use this order:
+
+1. `supabase/migrations/20260217120000_notifications_replays_rank_updates.sql`
+2. `supabase/migrations/20260217123000_fix_notifications_migration_resilience.sql`
+
+If the first migration fails in your environment, you can still run the second migration safely.
+It is written as a defensive, idempotent recovery migration that re-ensures the required table/columns/policies exist and backfills `aircraft.min_rank` for null rows.
