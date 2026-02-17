@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Constants } from "@/integrations/supabase/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
@@ -29,7 +28,7 @@ interface AircraftForm {
 }
 
 
-const pilotRankOptions = Constants.public.Enums.pilot_rank as readonly string[];
+const enumPilotRanks = ["cadet", "first_officer", "captain", "senior_captain", "commander"] as const;
 
 const formatRankLabel = (rank: string) => rank.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -62,6 +61,11 @@ export default function AdminAircraft() {
     },
   });
 
+
+
+  const rankOptions = (ranks || []).filter((r: any) => enumPilotRanks.includes(r.name));
+  const hasInvalidRankConfigs = (ranks || []).some((r: any) => !enumPilotRanks.includes(r.name));
+
   const saveMutation = useMutation({
     mutationFn: async (data: AircraftForm & { id?: string }) => {
       const payload = {
@@ -69,7 +73,7 @@ export default function AdminAircraft() {
         name: data.name,
         type: data.type,
         livery: data.livery || null,
-        min_rank: pilotRankOptions.includes(data.min_rank) ? data.min_rank : "cadet",
+        min_rank: data.min_rank || "cadet",
         passenger_capacity: data.passenger_capacity,
         cargo_capacity_kg: data.cargo_capacity_kg,
         range_nm: data.range_nm,
@@ -128,7 +132,7 @@ export default function AdminAircraft() {
       name: ac.name,
       type: ac.type,
       livery: ac.livery || "",
-      min_rank: pilotRankOptions.includes((ac as any).min_rank) ? (ac as any).min_rank : "cadet",
+      min_rank: (ac as any).min_rank || "cadet",
       passenger_capacity: ac.passenger_capacity,
       cargo_capacity_kg: ac.cargo_capacity_kg,
       range_nm: ac.range_nm,
@@ -203,16 +207,16 @@ export default function AdminAircraft() {
                 <Select value={form.min_rank} onValueChange={(v) => setForm({ ...form, min_rank: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {pilotRankOptions.map((rank) => {
-                      const rankConfig = (ranks || []).find((r: any) => r.name === rank);
-                      return (
-                        <SelectItem key={rank} value={rank}>
-                          {rankConfig?.label || formatRankLabel(rank)}
-                        </SelectItem>
-                      );
-                    })}
+                    {rankOptions.map((rank: any) => (
+                      <SelectItem key={rank.name} value={rank.name}>
+                        {rank.label || formatRankLabel(rank.name)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                {hasInvalidRankConfigs && (
+                  <p className="text-xs text-amber-600">Some rank slugs are invalid for aircraft unlock enum and were hidden. Use system ranks only.</p>
+                )}
               </div>
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
@@ -236,8 +240,8 @@ export default function AdminAircraft() {
             <DialogFooter>
               <Button variant="outline" onClick={closeDialog}>Cancel</Button>
               <Button onClick={() => {
-                if (!pilotRankOptions.includes(form.min_rank)) {
-                  toast.error("Please select a valid system rank");
+                if (!rankOptions.some((r: any) => r.name === form.min_rank)) {
+                  toast.error("Please select a valid rank from rank configuration");
                   return;
                 }
                 saveMutation.mutate({ ...form, id: editingId || undefined });
@@ -292,7 +296,7 @@ export default function AdminAircraft() {
                       <td className="py-3 px-2">
                         <Badge variant="secondary" className="capitalize">{ac.type}</Badge>
                       </td>
-                      <td className="py-3 px-2 capitalize">{formatRankLabel(((ac as any).min_rank && pilotRankOptions.includes((ac as any).min_rank)) ? (ac as any).min_rank : "cadet")}</td>
+                      <td className="py-3 px-2 capitalize">{formatRankLabel((ac as any).min_rank || "cadet")}</td>
                       <td className="py-3 px-2">
                         {ac.type === "cargo" ? (ac.cargo_capacity_kg ? `${ac.cargo_capacity_kg} kg` : "-") : (ac.passenger_capacity ? `${ac.passenger_capacity} pax` : "-")}
                       </td>
@@ -310,7 +314,7 @@ export default function AdminAircraft() {
                               name: ac.name,
                               type: ac.type,
                               livery: "",
-                              min_rank: pilotRankOptions.includes((ac as any).min_rank) ? (ac as any).min_rank : "cadet",
+                              min_rank: (ac as any).min_rank || "cadet",
                               passenger_capacity: ac.passenger_capacity,
                               cargo_capacity_kg: ac.cargo_capacity_kg,
                               range_nm: ac.range_nm,
