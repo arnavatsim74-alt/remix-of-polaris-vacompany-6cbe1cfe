@@ -26,7 +26,7 @@ export default function ActivityPage() {
       if (!pilot?.id) return null;
       const { data: pireps } = await supabase
         .from("pireps")
-        .select("flight_hours, multiplier, status, created_at")
+        .select("flight_hours, multiplier, status, created_at, flight_date")
         .eq("pilot_id", pilot.id);
 
       const totalPireps = pireps?.length || 0;
@@ -35,9 +35,16 @@ export default function ActivityPage() {
       const hours = Math.floor(totalHours);
       const mins = Math.round((totalHours - hours) * 60);
 
-      // Last PIREP date
-      const sortedPireps = pireps?.sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime());
-      const lastPirepDate = sortedPireps?.[0]?.created_at;
+      // Last PIREP date: prefer approved flights for activity recency.
+      const approvedForRecency = (pireps || []).filter((p: any) => p.status === "approved");
+      const recencySource = approvedForRecency.length > 0 ? approvedForRecency : (pireps || []);
+
+      const sortedPireps = recencySource.sort((a: any, b: any) => {
+        const aTime = new Date(a.flight_date || a.created_at).getTime();
+        const bTime = new Date(b.flight_date || b.created_at).getTime();
+        return bTime - aTime;
+      });
+      const lastPirepDate = sortedPireps?.[0]?.flight_date || sortedPireps?.[0]?.created_at;
 
       return { totalPireps, approvedPireps, totalHours, hours, mins, lastPirepDate };
     },

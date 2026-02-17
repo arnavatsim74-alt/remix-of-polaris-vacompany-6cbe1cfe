@@ -3,6 +3,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layouts/AppSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
+import { NotificationBell } from "@/components/NotificationBell";
 import vacompanyLogo from "@/assets/vacompany-logo.svg";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +31,7 @@ export function AppLayout() {
               <SidebarTrigger className="-ml-1" />
               <div className="flex-1" />
               <img src={headerLogo} alt="VA Logo" className="h-8 w-auto object-contain opacity-80" />
+              <NotificationBell />
               <ThemeToggle />
               <UserMenu />
             </div>

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { DiscordIcon } from "@/components/icons/DiscordIcon";
 import aeroflotLogo from "@/assets/aeroflot-logo.png";
 import aeroflotBanner from "@/assets/aeroflot-banner.jpg";
 import vacompanyLogo from "@/assets/vacompany-logo.svg";
@@ -25,7 +26,8 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { user, pilot, isLoading: isAuthLoading, signIn, signInWithDiscord, signOut } = useAuth();
 
   const { data: siteSettings } = useQuery({
     queryKey: ["site-settings-auth"],
@@ -46,6 +48,31 @@ export default function AuthPage() {
 
   const bannerSrc = siteSettings?.auth_banner_url || aeroflotBanner;
   const logoSrc = siteSettings?.auth_logo_url || aeroflotLogo;
+
+
+  useEffect(() => {
+    const oauthFlow = searchParams.get("oauth");
+    if (oauthFlow !== "login") return;
+    if (isAuthLoading) return;
+    if (!user) return;
+    if (pilot) return;
+
+    const validateOAuthApproval = async () => {
+      const { data: applicationData, error } = await supabase
+        .from("pilot_applications")
+        .select("status")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error || applicationData?.status !== "approved") {
+        await signOut();
+        toast.error("Your application is pending admin approval. Please wait for approval before logging in.");
+        navigate("/auth", { replace: true });
+      }
+    };
+
+    validateOAuthApproval();
+  }, [searchParams, isAuthLoading, user, pilot, signOut, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +108,24 @@ export default function AuthPage() {
     }
   };
 
+  const handleDiscordSignIn = async () => {
+    setIsLoading(true);
+
+    try {
+      const { error } = await signInWithDiscord("/auth", "login");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("Redirecting to Discord...");
+    } catch {
+      toast.error("Could not start Discord sign in");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex">
       {/* Left side - Image (wider) */}
@@ -92,9 +137,9 @@ export default function AuthPage() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
         <div className="relative z-10 flex flex-col justify-end p-12">
-          <img src={logoSrc} alt="Aeroflot Virtual Group" className="h-16 w-auto object-contain mb-4" />
+          <img src={logoSrc} alt="Royal Air Maroc Virtual" className="h-16 w-auto object-contain mb-4" />
           <p className="text-lg text-foreground/90 max-w-md">
-            Welcome to the professional crew management system for Aeroflot Virtual Group pilots on Infinite Flight.
+            Welcome to the professional crew management system for Royal Air Maroc Virtual pilots on Infinite Flight.
           </p>
         </div>
       </div>
@@ -146,6 +191,20 @@ export default function AuthPage() {
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Sign In
+                </Button>
+
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or</span>
+                  </div>
+                </div>
+
+                <Button type="button" variant="outline" className="w-full" disabled={isLoading} onClick={handleDiscordSignIn}>
+                  <DiscordIcon className="mr-2 h-4 w-4" />
+                  Continue with Discord
                 </Button>
               </form>
 
