@@ -26,12 +26,12 @@ export default function ActivityPage() {
       if (!pilot?.id) return null;
       const { data: pireps } = await supabase
         .from("pireps")
-        .select("flight_hours, status, created_at")
+        .select("flight_hours, multiplier, status, created_at")
         .eq("pilot_id", pilot.id);
 
       const totalPireps = pireps?.length || 0;
       const approvedPireps = pireps?.filter(p => p.status === "approved").length || 0;
-      const totalHours = pireps?.filter(p => p.status === "approved").reduce((sum, p) => sum + Number(p.flight_hours), 0) || 0;
+      const totalHours = pireps?.filter(p => p.status === "approved").reduce((sum, p) => sum + Number(p.flight_hours) * Number(p.multiplier || 1), 0) || 0;
       const hours = Math.floor(totalHours);
       const mins = Math.round((totalHours - hours) * 60);
 

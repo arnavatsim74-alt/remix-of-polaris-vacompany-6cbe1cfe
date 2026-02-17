@@ -11,7 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, Search, Check, X, Pause, FileText } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Shield, Search, Check, X, Pause, FileText, Plus, Trash2, Briefcase } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -23,6 +26,54 @@ export default function AdminPireps() {
   const [selectedPirep, setSelectedPirep] = useState<any>(null);
   const [actionType, setActionType] = useState<"approve" | "deny" | "hold" | null>(null);
   const [reason, setReason] = useState("");
+  const [newOperator, setNewOperator] = useState("");
+  const [deletingOperator, setDeletingOperator] = useState<string | null>(null);
+
+  const defaultOperators = [
+    "Aeroflot", "Azerbaijan Airlines", "Uzbekistan Airways", "Belavia",
+    "S7 Airlines", "AirBridge Cargo", "Saudia", "Emirates", "Fly Dubai",
+    "Emirates SkyCargo", "Aegean Airlines", "Qatar Airways",
+    "SunCountry Airlines", "IndiGo", "Oman Air", "Others",
+  ];
+
+  const { data: operators, refetch: refetchOperators } = useQuery({
+    queryKey: ["admin-operators"],
+    queryFn: async () => {
+      const { data } = await supabase.from("site_settings").select("*").eq("key", "pirep_operators").maybeSingle();
+      if (data?.value) {
+        try { return JSON.parse(data.value) as string[]; } catch { return defaultOperators; }
+      }
+      return defaultOperators;
+    },
+  });
+
+  const saveOperators = async (ops: string[]) => {
+    const val = JSON.stringify(ops);
+    const { data: existing } = await supabase.from("site_settings").select("id").eq("key", "pirep_operators").maybeSingle();
+    if (existing) {
+      await supabase.from("site_settings").update({ value: val, updated_at: new Date().toISOString() }).eq("key", "pirep_operators");
+    } else {
+      await supabase.from("site_settings").insert({ key: "pirep_operators", value: val });
+    }
+    queryClient.invalidateQueries({ queryKey: ["admin-operators"] });
+    queryClient.invalidateQueries({ queryKey: ["pirep-operators"] });
+  };
+
+  const handleAddOperator = async () => {
+    if (!newOperator.trim()) return;
+    const current = operators || defaultOperators;
+    if (current.includes(newOperator.trim())) { toast.error("Operator already exists"); return; }
+    await saveOperators([...current, newOperator.trim()]);
+    setNewOperator("");
+    toast.success("Operator added");
+  };
+
+  const handleRemoveOperator = async (op: string) => {
+    const current = operators || defaultOperators;
+    await saveOperators(current.filter(o => o !== op));
+    setDeletingOperator(null);
+    toast.success("Operator removed");
+  };
 
   const { data: pireps, isLoading } = useQuery({
     queryKey: ["admin-pireps", statusFilter],
@@ -344,6 +395,63 @@ export default function AdminPireps() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Operator Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Briefcase className="h-5 w-5" />
+            Manage Operators
+          </CardTitle>
+          <CardDescription>Add or remove operators available in the PIREP filing form</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="New operator name..."
+              value={newOperator}
+              onChange={(e) => setNewOperator(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddOperator()}
+              className="max-w-sm"
+            />
+            <Button onClick={handleAddOperator} size="sm">
+              <Plus className="h-4 w-4 mr-1" /> Add
+            </Button>
+          </div>
+          <Separator />
+          <div className="flex flex-wrap gap-2">
+            {(operators || defaultOperators).map((op) => (
+              <Badge key={op} variant="secondary" className="flex items-center gap-1 px-3 py-1.5">
+                {op}
+                <button
+                  onClick={() => setDeletingOperator(op)}
+                  className="ml-1 hover:text-destructive"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Confirm Remove Operator */}
+      <AlertDialog open={!!deletingOperator} onOpenChange={() => setDeletingOperator(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Operator</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove "{deletingOperator}"? Existing PIREPs with this operator won't be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deletingOperator && handleRemoveOperator(deletingOperator)}>
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

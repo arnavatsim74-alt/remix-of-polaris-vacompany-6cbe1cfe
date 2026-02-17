@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const operators = [
+const defaultOperators = [
   "Aeroflot", "Azerbaijan Airlines", "Uzbekistan Airways", "Belavia",
   "S7 Airlines", "AirBridge Cargo", "Saudia", "Emirates", "Fly Dubai",
   "Emirates SkyCargo", "Aegean Airlines", "Qatar Airways",
@@ -55,6 +55,18 @@ export default function FilePirep() {
   // Check if filing from event or ROTW (bypass aircraft restrictions)
   const isEventOrRotw = searchParams.has("event") || searchParams.has("rotw");
 
+  // Fetch operators from site_settings (fallback to defaults)
+  const { data: operators } = useQuery({
+    queryKey: ["pirep-operators"],
+    queryFn: async () => {
+      const { data } = await supabase.from("site_settings").select("value").eq("key", "pirep_operators").maybeSingle();
+      if (data?.value) {
+        try { return JSON.parse(data.value) as string[]; } catch { return defaultOperators; }
+      }
+      return defaultOperators;
+    },
+  });
+
   const { data: aircraft } = useQuery({
     queryKey: ["aircraft"],
     queryFn: async () => {
@@ -90,10 +102,22 @@ export default function FilePirep() {
     return unlocked.length > 0 ? unlocked : null; // null means no restrictions
   })();
 
-  // Filter aircraft based on rank if restrictions exist and not event/ROTW
-  const availableAircraft = (!isEventOrRotw && unlockedAircraftIcaos)
-    ? aircraft?.filter(ac => unlockedAircraftIcaos.includes(ac.icao_code))
-    : aircraft;
+  // Get unique aircraft by icao_code (deduplicate for the dropdown)
+  const getUniqueAircraft = (list: typeof aircraft) => {
+    if (!list) return [];
+    const seen = new Set<string>();
+    return list.filter(ac => {
+      if (seen.has(ac.icao_code)) return false;
+      seen.add(ac.icao_code);
+      return true;
+    });
+  };
+
+  const availableAircraft = getUniqueAircraft(
+    (!isEventOrRotw && unlockedAircraftIcaos)
+      ? aircraft?.filter(ac => unlockedAircraftIcaos.includes(ac.icao_code))
+      : aircraft
+  );
 
   const { data: multipliers } = useQuery({
     queryKey: ["multiplier-configs"],

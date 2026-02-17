@@ -15,13 +15,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Users, Search, Edit, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
-const rankOptions = [
-  { value: "cadet", label: "Cadet" },
-  { value: "first_officer", label: "First Officer" },
-  { value: "captain", label: "Captain" },
-  { value: "senior_captain", label: "Senior Captain" },
-  { value: "commander", label: "Commander" },
-];
 
 export default function AdminMembers() {
   const { isAdmin } = useAuth();
@@ -44,6 +37,14 @@ export default function AdminMembers() {
     queryFn: async () => {
       const { data } = await supabase.from("pilots").select("*").order("pid");
       return data || [];
+    },
+  });
+
+  const { data: rankOptions } = useQuery({
+    queryKey: ["rank-configs-for-members"],
+    queryFn: async () => {
+      const { data } = await supabase.from("rank_configs").select("name, label").eq("is_active", true).order("order_index");
+      return (data || []).map(r => ({ value: r.name, label: r.label }));
     },
   });
 
@@ -312,7 +313,7 @@ export default function AdminMembers() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {rankOptions.map((r) => (
+                    {(rankOptions || []).map((r) => (
                       <SelectItem key={r.value} value={r.value}>
                         {r.label}
                       </SelectItem>

@@ -69,6 +69,21 @@ export default function Dashboard() {
     enabled: !!pilot?.id,
   });
 
+  // Calculate approved flight hours from PIREPs (with multiplier)
+  const { data: approvedHours } = useQuery({
+    queryKey: ["approved-flight-hours", pilot?.id],
+    queryFn: async () => {
+      if (!pilot?.id) return 0;
+      const { data } = await supabase
+        .from("pireps")
+        .select("flight_hours, multiplier")
+        .eq("pilot_id", pilot.id)
+        .eq("status", "approved");
+      return data?.reduce((sum, p) => sum + Number(p.flight_hours) * Number(p.multiplier || 1), 0) || 0;
+    },
+    enabled: !!pilot?.id,
+  });
+
   const formatFlightTime = (hours: number) => {
     const h = Math.floor(hours);
     const m = Math.round((hours - h) * 60);
@@ -189,7 +204,7 @@ export default function Dashboard() {
                   Flight Time
                 </p>
                 <p className="text-2xl font-bold mt-1">
-                  {formatFlightTime(pilot.total_hours)}
+                  {formatFlightTime(approvedHours ?? pilot.total_hours)}
                 </p>
               </div>
               <Clock className="h-5 w-5 text-muted-foreground" />
