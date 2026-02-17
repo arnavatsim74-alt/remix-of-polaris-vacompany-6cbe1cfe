@@ -15,6 +15,8 @@ import { DiscordIcon } from "@/components/icons/DiscordIcon";
 import aeroflotLogo from "@/assets/aeroflot-logo.png";
 import aeroflotBanner from "@/assets/aeroflot-banner.jpg";
 import vacompanyLogo from "@/assets/vacompany-logo.svg";
+import { VACOMPANY_URL } from "@/lib/branding";
+import { PolarisFooter } from "@/components/PolarisFooter";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -147,7 +149,9 @@ export default function AuthPage() {
       {/* Right side - Login form (narrower) */}
       <div className="flex-1 flex flex-col lg:w-2/5">
         <div className="flex items-center justify-between p-4">
-          <img src={vacompanyLogo} alt="VACompany" className="h-10 w-auto object-contain opacity-80" />
+          <a href={VACOMPANY_URL} target="_blank" rel="noopener noreferrer" aria-label="Visit VACompany">
+            <img src={vacompanyLogo} alt="VACompany" className="h-10 w-auto object-contain opacity-80 invert dark:invert-0" />
+          </a>
           <ThemeToggle />
         </div>
         
@@ -209,7 +213,7 @@ export default function AuthPage() {
               </form>
 
               <div className="mt-6 text-center text-sm">
-                <span className="text-muted-foreground">New to Aeroflot VA? </span>
+                <span className="text-muted-foreground">New to Aeroflot? </span>
                 <Link to="/apply" className="text-primary hover:underline font-medium">
                   Apply to join
                 </Link>
@@ -220,8 +224,11 @@ export default function AuthPage() {
 
         {/* VACompany branding */}
         <div className="flex items-center justify-center pb-4 opacity-70">
-          <img src={vacompanyLogo} alt="VACompany" className="h-8 w-auto object-contain" />
+          <a href={VACOMPANY_URL} target="_blank" rel="noopener noreferrer" aria-label="Visit VACompany">
+            <img src={vacompanyLogo} alt="VACompany" className="h-8 w-auto object-contain invert dark:invert-0" />
+          </a>
         </div>
+        <PolarisFooter />
       </div>
     </div>
   );

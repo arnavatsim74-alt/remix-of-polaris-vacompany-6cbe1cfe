@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { DiscordIcon } from "@/components/icons/DiscordIcon";
 import aeroflotLogo from "@/assets/aeroflot-logo.png";
+import { PolarisFooter } from "@/components/PolarisFooter";
 
 const applicationSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
@@ -365,6 +366,7 @@ export default function ApplyPage() {
           </CardContent>
         </Card>
       </div>
+      <PolarisFooter />
     </div>
   );
 }

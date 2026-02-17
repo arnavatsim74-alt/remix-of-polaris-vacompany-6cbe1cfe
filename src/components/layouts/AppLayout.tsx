@@ -5,6 +5,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { NotificationBell } from "@/components/NotificationBell";
 import vacompanyLogo from "@/assets/vacompany-logo.svg";
+import { VACOMPANY_URL } from "@/lib/branding";
+import { PolarisFooter } from "@/components/PolarisFooter";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -19,6 +21,7 @@ export function AppLayout() {
   });
 
   const headerLogo = vaLogoUrl || vacompanyLogo;
+  const isDefaultLogo = !vaLogoUrl;
 
   return (
     <SidebarProvider>
@@ -30,7 +33,13 @@ export function AppLayout() {
             <div className="flex h-full items-center gap-4 px-4">
               <SidebarTrigger className="-ml-1" />
               <div className="flex-1" />
-              <img src={headerLogo} alt="VA Logo" className="h-8 w-auto object-contain opacity-80" />
+              <a href={VACOMPANY_URL} target="_blank" rel="noopener noreferrer" aria-label="Visit VACompany">
+                <img
+                  src={headerLogo}
+                  alt="VA Logo"
+                  className={`h-8 w-auto object-contain opacity-80 ${isDefaultLogo ? "invert dark:invert-0" : ""}`}
+                />
+              </a>
               <NotificationBell />
               <ThemeToggle />
               <UserMenu />
@@ -43,6 +52,7 @@ export function AppLayout() {
               <Outlet />
             </div>
           </main>
+          <PolarisFooter />
         </div>
       </div>
     </SidebarProvider>
