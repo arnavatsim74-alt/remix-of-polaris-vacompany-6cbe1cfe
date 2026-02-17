@@ -1,13 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Target, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export default function Challenges() {
   const { pilot } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: challenges, isLoading } = useQuery({
     queryKey: ["challenges"],
@@ -27,14 +30,39 @@ export default function Challenges() {
       if (!pilot?.id) return [];
       const { data } = await supabase
         .from("challenge_completions")
-        .select("challenge_id")
+        .select("challenge_id, status")
         .eq("pilot_id", pilot.id);
       return data || [];
     },
     enabled: !!pilot?.id,
   });
 
-  const completedIds = new Set(completions?.map((c) => c.challenge_id) || []);
+
+
+  const acceptChallengeMutation = useMutation({
+    mutationFn: async (challengeId: string) => {
+      if (!pilot?.id) throw new Error("Pilot not found");
+      const existing = completions?.find((c: any) => c.challenge_id === challengeId);
+      if (existing) return;
+
+      const { error } = await supabase.from("challenge_completions").insert({
+        challenge_id: challengeId,
+        pilot_id: pilot.id,
+        status: "incomplete",
+        completed_at: null,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["challenge-completions", pilot?.id] });
+      queryClient.invalidateQueries({ queryKey: ["admin-challenge-acceptances"] });
+      toast.success("Challenge accepted");
+    },
+    onError: (error: any) => toast.error(error?.message || "Failed to accept challenge"),
+  });
+
+  const completedIds = new Set((completions || []).filter((c: any) => c.status === "complete").map((c: any) => c.challenge_id));
+  const acceptedIds = new Set((completions || []).map((c: any) => c.challenge_id));
 
   return (
     <div className="space-y-6">
@@ -58,6 +86,7 @@ export default function Challenges() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {challenges.map((challenge) => {
             const isCompleted = completedIds.has(challenge.id);
+            const isAccepted = acceptedIds.has(challenge.id);
             return (
               <Card key={challenge.id} className={`overflow-hidden ${isCompleted ? "border-primary/50" : ""}`}>
                 {challenge.image_url && (
@@ -86,8 +115,13 @@ export default function Challenges() {
                     variant={isCompleted ? "default" : "outline"}
                     className={`mt-2 ${isCompleted ? "bg-primary/20 text-primary" : "text-destructive border-destructive/50"}`}
                   >
-                    {isCompleted ? "Complete" : "Incomplete"}
+                    {isCompleted ? "Complete" : isAccepted ? "Accepted" : "Incomplete"}
                   </Badge>
+                  {!isAccepted && (
+                    <Button className="mt-2 w-full" size="sm" onClick={() => acceptChallengeMutation.mutate(challenge.id)} disabled={acceptChallengeMutation.isPending}>
+                      Challenge Accepted
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             );

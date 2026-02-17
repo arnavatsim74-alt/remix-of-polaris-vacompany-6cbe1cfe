@@ -6,6 +6,17 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const isValidWebhookUrl = (value?: string | null) => {
+  if (!value || value.includes("PLACEHOLDER_VALUE_TO_BE_REPLACED")) return false;
+  try {
+    const u = new URL(value);
+    return (u.protocol === "https:") && (u.hostname.includes("discord.com") || u.hostname.includes("discordapp.com"));
+  } catch {
+    return false;
+  }
+};
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -87,15 +98,14 @@ serve(async (req) => {
       };
     }
 
-    if (!webhookUrl) {
-      console.error("No webhook URL configured for type:", type);
-      return new Response(JSON.stringify({ error: "Webhook not configured" }), {
-        status: 500,
+    if (!isValidWebhookUrl(webhookUrl)) {
+      console.warn("Skipping Discord webhook due to invalid or placeholder URL for type:", type);
+      return new Response(JSON.stringify({ success: true, skipped: true, reason: "invalid_webhook_url" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const discordResponse = await fetch(webhookUrl, {
+    const discordResponse = await fetch(webhookUrl!, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ embeds: [embed] }),

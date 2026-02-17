@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Loader2, ArrowLeft, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { DiscordIcon } from "@/components/icons/DiscordIcon";
 import aeroflotLogo from "@/assets/aeroflot-logo.png";
 
 const applicationSchema = z.object({
@@ -29,8 +30,7 @@ export default function ApplyPage() {
   
   const [isLoading, setIsLoading] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState<ApplicationStatus>("idle");
-  const navigate = useNavigate();
-  const { user, signUp } = useAuth();
+  const { user, signUp, signInWithDiscord } = useAuth();
 
   // Check if user already has an application
   useEffect(() => {
@@ -109,6 +109,25 @@ export default function ApplyPage() {
       toast.success("Application submitted successfully!");
     } catch (err) {
       toast.error("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  const handleDiscordRegister = async () => {
+    setIsLoading(true);
+
+    try {
+      const { error } = await signInWithDiscord("/apply");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("Redirecting to Discord...");
+    } catch {
+      toast.error("Could not start Discord registration");
     } finally {
       setIsLoading(false);
     }
@@ -260,6 +279,22 @@ export default function ApplyPage() {
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Submit Application
               </Button>
+
+              <div className="space-y-3">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or</span>
+                  </div>
+                </div>
+
+                <Button type="button" variant="outline" className="w-full" disabled={isLoading} onClick={handleDiscordRegister}>
+                  <DiscordIcon className="mr-2 h-4 w-4" />
+                  Register with Discord
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
