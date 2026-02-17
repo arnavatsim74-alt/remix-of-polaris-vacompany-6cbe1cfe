@@ -261,7 +261,7 @@ export default function ApplyPage() {
           <Card className="w-full max-w-2xl">
           <CardHeader className="text-center">
             <div className="mx-auto mb-4">
-              <img src={aeroflotLogo} alt="Aeroflot VA" className="h-12 w-auto object-contain" />
+              <img src={aeroflotLogo} alt="Royal Air Maroc Virtual" className="h-12 w-auto object-contain" />
             </div>
             <CardTitle className="text-2xl">Join Royal Air Maroc Virtual</CardTitle>
             <CardDescription>

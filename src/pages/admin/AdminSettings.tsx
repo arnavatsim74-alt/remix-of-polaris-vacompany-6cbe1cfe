@@ -195,7 +195,7 @@ export default function AdminSettings() {
           <Input
             value={trackerUrl}
             onChange={(e) => { setTrackerUrl(e.target.value); setTrackerDirty(true); }}
-            placeholder="https://aflv-tracker.lovable.app/"
+            placeholder="https://ramva-tracker.lovable.app/"
           />
           <Button onClick={async () => { await saveSetting("tracker_embed_url", trackerUrl); setTrackerDirty(false); toast.success("Tracker URL saved"); }} disabled={!trackerDirty}>
             <Save className="h-4 w-4 mr-2" />Save
