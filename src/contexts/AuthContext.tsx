@@ -20,6 +20,7 @@ interface AuthContextType {
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithDiscord: (redirectPath?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshPilot: () => Promise<void>;
 }
@@ -140,6 +141,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
+
+  const signInWithDiscord = async (redirectPath = "/") => {
+    const redirectTo = `${window.location.origin}${redirectPath}`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "discord",
+      options: { redirectTo },
+    });
+    return { error };
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setPilot(null);
@@ -147,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, pilot, isAdmin, isLoading, signIn, signUp, signOut, refreshPilot }}>
+    <AuthContext.Provider value={{ user, session, pilot, isAdmin, isLoading, signIn, signUp, signInWithDiscord, signOut, refreshPilot }}>
       {children}
     </AuthContext.Provider>
   );

@@ -9,8 +9,30 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ArrowLeft, BookOpen, CheckCircle, Circle, ClipboardCheck, GraduationCap, Plane, Calendar, CheckSquare, XCircle } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle, Circle, ClipboardCheck, GraduationCap, Plane, Calendar, CheckSquare, XCircle, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { sendNotification } from "@/lib/notifications";
+
+function renderSimpleMarkdown(markdown?: string | null) {
+  const text = markdown || "";
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  const html = escaped
+    .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img alt="$1" src="$2" class="rounded-md border my-3" />')
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+    .replace(/\n/g, "<br />");
+
+
+  return { __html: html || "No content available for this lesson." };
+}
 
 export default function AcademyCourse() {
   const { courseId } = useParams<{ courseId: string }>();
@@ -262,9 +284,7 @@ export default function AcademyCourse() {
                     <img src={(currentLesson as any).image_url} alt={currentLesson.title} className="w-full h-auto object-contain max-h-[500px]" />
                   </div>
                 )}
-                <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
-                  {currentLesson.content || "No content available for this lesson."}
-                </div>
+                <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={renderSimpleMarkdown(currentLesson.content)} />
                 {enrollment && !isLessonComplete(currentLesson.id) && (
                   <Button onClick={() => markCompleteMutation.mutate(currentLesson.id)} disabled={markCompleteMutation.isPending}>
                     <CheckCircle className="h-4 w-4 mr-2" />
@@ -294,6 +314,7 @@ export default function AcademyCourse() {
 
 /* ---- Practical Card with completion button ---- */
 function PracticalCard({ practical: p, pilotId }: { practical: any; pilotId?: string }) {
+  const [uploadingReplay, setUploadingReplay] = useState(false);
   const queryClient = useQueryClient();
 
   const markCompleteMutation = useMutation({
@@ -303,13 +324,45 @@ function PracticalCard({ practical: p, pilotId }: { practical: any; pilotId?: st
         completed_at: new Date().toISOString(),
       }).eq("id", p.id);
       if (error) throw error;
+
+      if (pilotId) {
+        await sendNotification({
+          recipientPilotId: pilotId,
+          title: "Practical marked as completed",
+          message: `You marked practical ${p.academy_courses?.title || ""} as completed and it is awaiting review.`,
+          type: "practical_completion",
+          relatedEntity: "academy_practical",
+          relatedId: p.id,
+        });
+      }
+
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["academy-practicals-pilot"] });
       toast.success("Practical marked as completed!");
     },
-    onError: () => toast.error("Failed to update practical"),
+    onError: (error: any) => toast.error(error?.message || "Failed to update practical"),
   });
+
+  const handleReplayUpload = async (file?: File) => {
+    if (!file || !pilotId) return;
+    setUploadingReplay(true);
+    try {
+      const ext = file.name.split(".").pop() || "replay";
+      const path = `practical-replays/${pilotId}/${p.id}-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("site-assets").upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from("site-assets").getPublicUrl(path);
+      const { error } = await supabase.from("academy_practicals").update({ replay_file_url: data.publicUrl }).eq("id", p.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["academy-practicals-pilot"] });
+      toast.success("Replay uploaded");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to upload replay file");
+    } finally {
+      setUploadingReplay(false);
+    }
+  };
 
   return (
     <div className="p-2 rounded-md border text-sm space-y-1">
@@ -330,6 +383,20 @@ function PracticalCard({ practical: p, pilotId }: { practical: any; pilotId?: st
           {p.status === "failed" ? "Fail Reason" : "Result"}: {p.result_notes}
         </p>
       )}
+            <div className="flex gap-2 pt-1">
+        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={uploadingReplay} asChild>
+          <label>
+            <Upload className="h-3 w-3 mr-1" /> Upload IF Replay
+            <input type="file" className="hidden" accept=".ifrp,.replay,.txt" onChange={(e) => handleReplayUpload(e.target.files?.[0])} />
+          </label>
+        </Button>
+        {p.replay_file_url && (
+          <Button size="sm" variant="ghost" className="h-7 text-xs" asChild>
+            <a href={p.replay_file_url} target="_blank" rel="noreferrer">View replay</a>
+          </Button>
+        )}
+      </div>
+
       {p.status === "passed" && (
         <div className="flex items-center gap-1 text-xs text-green-600">
           <CheckCircle className="h-3 w-3" /> Passed

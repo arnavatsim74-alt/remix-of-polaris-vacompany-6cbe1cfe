@@ -71,3 +71,15 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Supabase migration troubleshooting (notifications/replays/min-rank)
+
+Use the unified migration:
+
+- `supabase/migrations/20260217143000_academy_notifications_and_permissions_unified.sql`
+
+It is idempotent and includes:
+- notifications table + RLS policies,
+- practical replay/min-rank columns,
+- practical completion + replay upload permissions,
+- DB-level assignment notifications for practicals and exams.
