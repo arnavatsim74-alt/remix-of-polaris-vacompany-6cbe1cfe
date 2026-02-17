@@ -35,8 +35,11 @@ export default function ActivityPage() {
       const hours = Math.floor(totalHours);
       const mins = Math.round((totalHours - hours) * 60);
 
-      // Last PIREP date (prefer flight_date over created_at to avoid always-0-day issue)
-      const sortedPireps = (pireps || []).sort((a: any, b: any) => {
+      // Last PIREP date: prefer approved flights for activity recency.
+      const approvedForRecency = (pireps || []).filter((p: any) => p.status === "approved");
+      const recencySource = approvedForRecency.length > 0 ? approvedForRecency : (pireps || []);
+
+      const sortedPireps = recencySource.sort((a: any, b: any) => {
         const aTime = new Date(a.flight_date || a.created_at).getTime();
         const bTime = new Date(b.flight_date || b.created_at).getTime();
         return bTime - aTime;

@@ -49,7 +49,7 @@ export default function Details() {
           <Card>
             <CardHeader>
               <CardTitle>Our Fleet</CardTitle>
-              <CardDescription>Aircraft available for Aeroflot Virtual operations</CardDescription>
+              <CardDescription>Aircraft available for operations (includes codeshares)</CardDescription>
             </CardHeader>
             <CardContent>
               {aircraftLoading ? (
@@ -97,7 +97,7 @@ export default function Details() {
                           {(ac as any).min_rank && (
                             <div className="flex items-center gap-1 text-muted-foreground col-span-2">
                               <Award className="h-3 w-3" />
-                              <span>Unlock rank: {String((ac as any).min_rank).replace("_", " ")}</span>
+                              <span>Unlock rank: {String((ac as any).min_rank).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
                             </div>
                           )}
                         </div>
