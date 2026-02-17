@@ -94,10 +94,10 @@ export default function Details() {
                               <span>{ac.cargo_capacity_kg} kg</span>
                             </div>
                           )}
-                          {ac.min_hours != null && ac.min_hours > 0 && (
-                            <div className="flex items-center gap-1 text-muted-foreground">
+                          {(ac as any).min_rank && (
+                            <div className="flex items-center gap-1 text-muted-foreground col-span-2">
                               <Award className="h-3 w-3" />
-                              <span>{ac.min_hours}h req.</span>
+                              <span>Unlock rank: {String((ac as any).min_rank).replace("_", " ")}</span>
                             </div>
                           )}
                         </div>
@@ -128,7 +128,18 @@ export default function Details() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-sm">{rank.label}</h3>
-                        <p className="text-xs text-muted-foreground truncate">{rank.description}</p>
+                        <p className="text-xs text-muted-foreground">{rank.description}</p>
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {(rank.aircraft_unlocks || []).map((ac: string) => (
+                            <Badge key={`${rank.id}-${ac}`} variant="outline" className="text-[10px]">✈ {ac}</Badge>
+                          ))}
+                          {(rank.perk_unlocks || []).map((perk: string) => (
+                            <Badge key={`${rank.id}-${perk}`} variant="secondary" className="text-[10px]">★ {perk}</Badge>
+                          ))}
+                          {!(rank.aircraft_unlocks?.length) && !(rank.perk_unlocks?.length) && (
+                            <span className="text-[10px] text-muted-foreground">No unlocks/perks set</span>
+                          )}
+                        </div>
                       </div>
                       <Badge variant="outline" className="text-xs shrink-0">
                         {rank.min_hours}h {rank.max_hours ? `- ${rank.max_hours}h` : "+"}
