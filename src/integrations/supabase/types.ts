@@ -571,24 +571,27 @@ export type Database = {
       challenge_completions: {
         Row: {
           challenge_id: string
-          completed_at: string
+          completed_at: string | null
           id: string
           pilot_id: string
           pirep_id: string | null
+          status: string
         }
         Insert: {
           challenge_id: string
-          completed_at?: string
+          completed_at?: string | null
           id?: string
           pilot_id: string
           pirep_id?: string | null
+          status?: string
         }
         Update: {
           challenge_id?: string
-          completed_at?: string
+          completed_at?: string | null
           id?: string
           pilot_id?: string
           pirep_id?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -1369,6 +1372,17 @@ export type Database = {
         Returns: boolean
       }
       get_next_pid: { Args: never; Returns: string }
+      register_for_event: {
+        Args: { p_event_id: string; p_pilot_id: string }
+        Returns: {
+          assigned_arr_gate: string | null
+          assigned_dep_gate: string | null
+          event_id: string
+          id: string
+          pilot_id: string
+          registered_at: string | null
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
