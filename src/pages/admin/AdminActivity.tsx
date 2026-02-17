@@ -52,12 +52,12 @@ function OverviewTab() {
     queryKey: ["admin-activity-stats"],
     queryFn: async () => {
       const { data: pilots } = await supabase.from("pilots").select("id, total_hours, total_pireps");
-      const { data: pireps } = await supabase.from("pireps").select("flight_hours, status");
+      const { data: pireps } = await supabase.from("pireps").select("flight_hours, multiplier, status");
 
       const totalMembers = pilots?.length || 0;
       const totalPireps = pireps?.length || 0;
       const approvedPireps = pireps?.filter(p => p.status === "approved").length || 0;
-      const totalHoursApproved = pireps?.filter(p => p.status === "approved").reduce((sum, p) => sum + Number(p.flight_hours), 0) || 0;
+      const totalHoursApproved = pireps?.filter(p => p.status === "approved").reduce((sum, p) => sum + Number(p.flight_hours) * Number(p.multiplier || 1), 0) || 0;
       const hours = Math.floor(totalHoursApproved);
       const mins = Math.round((totalHoursApproved - hours) * 60);
 

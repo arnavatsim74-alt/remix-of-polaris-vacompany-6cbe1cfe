@@ -26,13 +26,7 @@ interface RouteImportMappingProps {
   onCancel: () => void;
 }
 
-const rankOptions = [
-  { value: "cadet", label: "Cadet" },
-  { value: "first_officer", label: "First Officer" },
-  { value: "captain", label: "Captain" },
-  { value: "senior_captain", label: "Senior Captain" },
-  { value: "commander", label: "Commander" },
-];
+// Ranks fetched from DB in the component below
 
 // Map common rank strings to system values
 const normalizeRank = (rank: string): string | null => {
@@ -72,6 +66,15 @@ export function RouteImportMapping({ parsedRoutes, onComplete, onCancel }: Route
     queryFn: async () => {
       const { data } = await supabase.from("aircraft").select("*").order("name");
       return data || [];
+    },
+  });
+
+  // Fetch ranks from database
+  const { data: rankOptions } = useQuery({
+    queryKey: ["rank-configs-for-mapping"],
+    queryFn: async () => {
+      const { data } = await supabase.from("rank_configs").select("name, label").eq("is_active", true).order("order_index");
+      return (data || []).map(r => ({ value: r.name, label: r.label }));
     },
   });
 
@@ -219,7 +222,7 @@ export function RouteImportMapping({ parsedRoutes, onComplete, onCancel }: Route
                     <SelectValue placeholder="Select a rank" />
                   </SelectTrigger>
                   <SelectContent>
-                    {rankOptions.map((rank) => (
+                    {(rankOptions || []).map((rank) => (
                       <SelectItem key={rank.value} value={rank.value}>
                         {rank.label}
                       </SelectItem>
