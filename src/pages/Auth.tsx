@@ -25,7 +25,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { signIn, signInWithDiscord } = useAuth();
 
   const { data: siteSettings } = useQuery({
     queryKey: ["site-settings-auth"],
@@ -76,6 +76,24 @@ export default function AuthPage() {
       navigate("/");
     } catch (err) {
       toast.error("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDiscordSignIn = async () => {
+    setIsLoading(true);
+
+    try {
+      const { error } = await signInWithDiscord("/");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("Redirecting to Discord...");
+    } catch {
+      toast.error("Could not start Discord sign in");
     } finally {
       setIsLoading(false);
     }
@@ -146,6 +164,19 @@ export default function AuthPage() {
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Sign In
+                </Button>
+
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or</span>
+                  </div>
+                </div>
+
+                <Button type="button" variant="outline" className="w-full" disabled={isLoading} onClick={handleDiscordSignIn}>
+                  Continue with Discord
                 </Button>
               </form>
 

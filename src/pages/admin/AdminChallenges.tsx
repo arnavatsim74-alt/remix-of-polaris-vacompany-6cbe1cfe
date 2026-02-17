@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Plus, Trash2, Edit, Target } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +26,19 @@ export default function AdminChallenges() {
     queryKey: ["admin-challenges"],
     queryFn: async () => {
       const { data } = await supabase.from("challenges").select("*").order("created_at");
+      return data || [];
+    },
+  });
+
+
+
+  const { data: acceptances } = useQuery({
+    queryKey: ["admin-challenge-acceptances"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("challenge_completions")
+        .select("id, status, completed_at, challenge_id, pilot_id, challenges!challenge_completions_challenge_id_fkey(name), pilots!challenge_completions_pilot_id_fkey(full_name, pid)")
+        .order("completed_at", { ascending: false, nullsFirst: false });
       return data || [];
     },
   });
@@ -79,6 +93,25 @@ export default function AdminChallenges() {
     },
     onError: () => toast.error("Failed to delete challenge"),
   });
+
+
+
+  const updateAcceptanceStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: "incomplete" | "complete" }) => {
+      const { error } = await supabase
+        .from("challenge_completions")
+        .update({ status, completed_at: status === "complete" ? new Date().toISOString() : null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-challenge-acceptances"] });
+      queryClient.invalidateQueries({ queryKey: ["challenge-completions"] });
+      toast.success("Challenge status updated");
+    },
+    onError: () => toast.error("Failed to update status"),
+  });
+
 
   const closeDialog = () => { setIsDialogOpen(false); setEditingId(null); setForm({ name: "", description: "", destination_icao: "", image_url: "" }); };
 
@@ -186,6 +219,54 @@ export default function AdminChallenges() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Challenge Acceptances</CardTitle>
+          <CardDescription>Pilot accepted challenges and completion status</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {acceptances && acceptances.length > 0 ? (
+            <div className="relative overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-2 font-medium">Pilot</th>
+                    <th className="text-left py-3 px-2 font-medium">Challenge</th>
+                    <th className="text-left py-3 px-2 font-medium">Status</th>
+                    <th className="text-right py-3 px-2 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {acceptances.map((a: any) => (
+                    <tr key={a.id} className="border-b last:border-0">
+                      <td className="py-3 px-2">{a.pilots?.full_name} ({a.pilots?.pid})</td>
+                      <td className="py-3 px-2">{a.challenges?.name || "-"}</td>
+                      <td className="py-3 px-2">
+                        <Badge variant={a.status === "complete" ? "default" : "secondary"}>{a.status}</Badge>
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        {a.status === "incomplete" ? (
+                          <Button size="sm" onClick={() => updateAcceptanceStatusMutation.mutate({ id: a.id, status: "complete" })}>
+                            Mark Complete
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={() => updateAcceptanceStatusMutation.mutate({ id: a.id, status: "incomplete" })}>
+                            Mark Incomplete
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-center py-8 text-muted-foreground">No accepted challenges yet</p>
+          )}
+        </CardContent>
+      </Card>
+
     </div>
   );
 }

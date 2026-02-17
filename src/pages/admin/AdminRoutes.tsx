@@ -15,6 +15,7 @@ import { Shield, Upload, Plus, Trash2, Route, Download } from "lucide-react";
 import { toast } from "sonner";
 import { RouteImportMapping } from "@/components/admin/RouteImportMapping";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ParsedRoute {
   route_number: string;
@@ -35,6 +36,7 @@ export default function AdminRoutes() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [parsedRoutes, setParsedRoutes] = useState<ParsedRoute[]>([]);
+  const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([]);
   const [newRoute, setNewRoute] = useState({
     route_number: "",
     dep_icao: "",
@@ -110,6 +112,19 @@ export default function AdminRoutes() {
       console.error(error);
       toast.error("Failed to delete route");
     },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("routes").delete().in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-routes"] });
+      setSelectedRouteIds([]);
+      toast.success("Selected routes deleted");
+    },
+    onError: () => toast.error("Failed to bulk delete routes"),
   });
 
   // Parse CSV line respecting quoted fields
@@ -389,6 +404,14 @@ export default function AdminRoutes() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
+          <ConfirmDialog
+            trigger={<Button variant="destructive" disabled={selectedRouteIds.length === 0}>
+              <Trash2 className="h-4 w-4 mr-2" /> Bulk Delete ({selectedRouteIds.length})
+            </Button>}
+            title="Delete selected routes?"
+            description="This will permanently remove all selected routes."
+            onConfirm={() => bulkDeleteMutation.mutate(selectedRouteIds)}
+          />
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -540,6 +563,12 @@ export default function AdminRoutes() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
+                    <th className="text-left py-3 px-2 font-medium">
+                      <Checkbox
+                        checked={routes.length > 0 && selectedRouteIds.length === routes.length}
+                        onCheckedChange={(checked) => setSelectedRouteIds(checked ? routes.map(r => r.id) : [])}
+                      />
+                    </th>
                     <th className="text-left py-3 px-2 font-medium">Route</th>
                     <th className="text-left py-3 px-2 font-medium">Dep</th>
                     <th className="text-left py-3 px-2 font-medium">Arr</th>
@@ -555,6 +584,12 @@ export default function AdminRoutes() {
                 <tbody>
                   {routes.map((route) => (
                     <tr key={route.id} className="border-b last:border-0 hover:bg-muted/50">
+                      <td className="py-3 px-2">
+                        <Checkbox
+                          checked={selectedRouteIds.includes(route.id)}
+                          onCheckedChange={(checked) => setSelectedRouteIds(prev => checked ? [...prev, route.id] : prev.filter(id => id !== route.id))}
+                        />
+                      </td>
                       <td className="py-3 px-2 font-medium">{route.route_number}</td>
                       <td className="py-3 px-2 font-mono">{route.dep_icao}</td>
                       <td className="py-3 px-2 font-mono">{route.arr_icao}</td>
