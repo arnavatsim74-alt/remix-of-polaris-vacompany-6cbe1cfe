@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ export default function ApplyPage() {
   const [isAutoSubmittingDiscord, setIsAutoSubmittingDiscord] = useState(false);
   const discordAutoSubmitRan = useRef(false);
   const { user, signUp, signInWithDiscord } = useAuth();
+  const [searchParams] = useSearchParams();
 
   // Check if user already has an application
   useEffect(() => {
@@ -52,7 +53,7 @@ export default function ApplyPage() {
     };
 
     checkExistingApplication();
-  }, [user]);
+  }, [user, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,10 +142,12 @@ export default function ApplyPage() {
     const autoSubmitDiscordApplication = async () => {
       if (!user || discordAutoSubmitRan.current) return;
 
+      const isDiscordRegisterFlow = searchParams.get("oauth") === "register";
+
       const hasDiscordIdentity = user.identities?.some((identity) => identity.provider === "discord")
         || user.app_metadata?.provider === "discord"
         || (Array.isArray(user.app_metadata?.providers) && user.app_metadata.providers.includes("discord"));
-      if (!hasDiscordIdentity) return;
+      if (!hasDiscordIdentity && !isDiscordRegisterFlow) return;
 
       discordAutoSubmitRan.current = true;
       setIsAutoSubmittingDiscord(true);
@@ -197,7 +200,7 @@ export default function ApplyPage() {
     };
 
     autoSubmitDiscordApplication();
-  }, [user]);
+  }, [user, searchParams]);
 
   if (applicationStatus === "pending") {
     return (

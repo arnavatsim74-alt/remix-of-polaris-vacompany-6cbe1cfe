@@ -31,6 +31,16 @@ type EventForm = {
   available_arr_gates: string;
 };
 
+const formatZuluDateTime = (iso: string) => {
+  const d = new Date(iso);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mi = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}Z`;
+};
+
 const emptyEventForm: EventForm = {
   name: "",
   description: "",
@@ -141,6 +151,8 @@ export default function AdminEvents() {
         bannerUrl = data.publicUrl;
       }
 
+      const selectedAc = aircraft?.find((ac) => ac.icao_code === event.aircraft_icao && (event.aircraft_name ? (event.aircraft_name.includes(ac.name)) : true));
+
       const payload = {
         name: event.name,
         description: event.description,
@@ -154,6 +166,7 @@ export default function AdminEvents() {
         banner_url: bannerUrl,
         available_dep_gates: event.available_dep_gates ? event.available_dep_gates.split(",").map((g) => g.trim()).filter(Boolean) : [],
         available_arr_gates: event.available_arr_gates ? event.available_arr_gates.split(",").map((g) => g.trim()).filter(Boolean) : [],
+        livery: selectedAc?.livery || null,
       } as any;
 
       const { data, error } = await supabase.from("events").insert(payload).select("*").single();
@@ -177,6 +190,8 @@ export default function AdminEvents() {
     mutationFn: async (event: EventForm) => {
       if (!editingEventId) throw new Error("No event selected");
 
+      const selectedAc = aircraft?.find((ac) => ac.icao_code === event.aircraft_icao && (event.aircraft_name ? (event.aircraft_name.includes(ac.name)) : true));
+
       const payload = {
         name: event.name,
         description: event.description,
@@ -189,6 +204,7 @@ export default function AdminEvents() {
         aircraft_name: event.aircraft_name || null,
         available_dep_gates: event.available_dep_gates ? event.available_dep_gates.split(",").map((g) => g.trim()).filter(Boolean) : [],
         available_arr_gates: event.available_arr_gates ? event.available_arr_gates.split(",").map((g) => g.trim()).filter(Boolean) : [],
+        livery: selectedAc?.livery || null,
       } as any;
 
       const { data, error } = await supabase.from("events").update(payload).eq("id", editingEventId).select("*").single();
@@ -272,18 +288,25 @@ export default function AdminEvents() {
         <div className="space-y-2">
           <Label>Aircraft</Label>
           <Select
-            value={value.aircraft_icao}
+            value={(aircraft?.find((ac) => ac.icao_code === value.aircraft_icao && (value.aircraft_name ? value.aircraft_name.includes(ac.name) : true))?.id) || "none"}
             onValueChange={(v) => {
-              const selectedAircraft = aircraft?.find((ac) => ac.icao_code === v);
-              setValue({ ...value, aircraft_icao: v, aircraft_name: selectedAircraft?.name || "" });
+              if (v === "none") {
+                setValue({ ...value, aircraft_icao: "", aircraft_name: "" });
+                return;
+              }
+              const selectedAircraft = aircraft?.find((ac) => ac.id === v);
+              if (!selectedAircraft) return;
+              const displayName = `${selectedAircraft.name}${selectedAircraft.livery ? ` - ${selectedAircraft.livery}` : ""}`;
+              setValue({ ...value, aircraft_icao: selectedAircraft.icao_code, aircraft_name: displayName });
             }}
           >
             <SelectTrigger>
               <SelectValue placeholder="Any aircraft" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="none">Any aircraft</SelectItem>
               {aircraft?.map((ac) => (
-                <SelectItem key={ac.id} value={ac.icao_code}>{ac.name} ({ac.icao_code}){ac.livery ? ` - ${ac.livery}` : ""}</SelectItem>
+                <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.icao_code}){ac.livery ? ` - ${ac.livery}` : ""}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -411,7 +434,7 @@ export default function AdminEvents() {
                         </td>
                         <td className="py-3 px-2"><Badge variant="secondary">{event.server}</Badge></td>
                         <td className="py-3 px-2 font-mono">{event.dep_icao} → {event.arr_icao}</td>
-                        <td className="py-3 px-2">{format(new Date(event.start_time), "MMM dd, HH:mm")}z</td>
+                        <td className="py-3 px-2">{formatZuluDateTime(event.start_time)}</td>
                         <td className="py-3 px-2"><div className="flex items-center gap-1"><Users className="h-3 w-3 text-muted-foreground" />{getRegistrationCount(event.id)}</div></td>
                         <td className="py-3 px-2">
                           {isPast ? <Badge variant="secondary">Ended</Badge> : isOngoing ? <Badge className="bg-success text-success-foreground">Ongoing</Badge> : <Badge variant="outline">Upcoming</Badge>}

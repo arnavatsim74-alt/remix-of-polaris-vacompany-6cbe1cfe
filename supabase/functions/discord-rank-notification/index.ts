@@ -66,7 +66,7 @@ serve(async (req) => {
       };
     } else if (type === "event_created" || type === "event_updated") {
       webhookUrl = Deno.env.get("DISCORD_WEBHOOK_EVENTS") || Deno.env.get("DISCORD_WEBHOOK_URL");
-      const { name, description, dep_icao, arr_icao, server, start_time, end_time, aircraft_icao, aircraft_name } = body;
+      const { name, description, dep_icao, arr_icao, server, start_time, end_time, aircraft_icao, aircraft_name, livery } = body;
       embed = {
         title: type === "event_updated" ? "🛠️ Event Updated" : "📅 New Event Created",
         description: `**${name || "Event"}**${description ? `\n${description}` : ""}`,
@@ -74,7 +74,7 @@ serve(async (req) => {
         fields: [
           { name: "Route", value: `${dep_icao || "----"} → ${arr_icao || "----"}`, inline: true },
           { name: "Server", value: server || "N/A", inline: true },
-          { name: "Aircraft", value: aircraft_name || aircraft_icao || "Any", inline: true },
+          { name: "Aircraft", value: `${aircraft_name || aircraft_icao || "Any"}${livery ? ` (${livery})` : ""}`, inline: true },
           ...(start_time ? [{ name: "Start", value: new Date(start_time).toISOString(), inline: true }] : []),
           ...(end_time ? [{ name: "End", value: new Date(end_time).toISOString(), inline: true }] : []),
         ],

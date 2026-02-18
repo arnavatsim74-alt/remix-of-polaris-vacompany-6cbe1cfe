@@ -48,6 +48,15 @@ export default function Events() {
     enabled: !!pilot?.id,
   });
 
+
+  const { data: aircraft } = useQuery({
+    queryKey: ["events-aircraft"],
+    queryFn: async () => {
+      const { data } = await supabase.from("aircraft").select("icao_code,livery");
+      return data || [];
+    },
+  });
+
   const joinEventMutation = useMutation({
     mutationFn: async (eventId: string) => {
       if (!pilot?.id) throw new Error("Pilot not found");
@@ -147,7 +156,14 @@ export default function Events() {
                   {(event as any).aircraft_icao && (
                     <div className="flex items-center gap-2 text-sm">
                       <Plane className="h-4 w-4 text-muted-foreground" />
-                      <span>{(event as any).aircraft_name || (event as any).aircraft_icao}</span>
+                      <span>{(() => {
+                        const eventName = String((event as any).aircraft_name || "");
+                        const eventIcao = String((event as any).aircraft_icao || "");
+                        const alreadyHasLivery = eventName.includes(" - ");
+                        const fallbackLivery = aircraft?.find((a: any) => a.icao_code === eventIcao)?.livery;
+                        const withLivery = !alreadyHasLivery && fallbackLivery ? `${eventName || eventIcao} - ${fallbackLivery}` : (eventName || eventIcao);
+                        return withLivery || "Any";
+                      })()}</span>
                     </div>
                   )}
 
