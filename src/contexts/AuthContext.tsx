@@ -53,6 +53,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { username, discordUserId };
   };
 
+
+
+  const getDiscordAvatarUrl = (authUser: User | null) => {
+    const discordIdentity = authUser?.identities?.find((identity) => identity.provider === "discord");
+    const identityData = (discordIdentity?.identity_data || {}) as Record<string, unknown>;
+
+    const avatarFromMetadata =
+      (typeof identityData.avatar_url === "string" && identityData.avatar_url)
+      || (typeof authUser?.user_metadata?.avatar_url === "string" && authUser.user_metadata.avatar_url)
+      || (typeof authUser?.user_metadata?.picture === "string" && authUser.user_metadata.picture)
+      || null;
+    if (avatarFromMetadata) return avatarFromMetadata;
+
+    const avatarHash = typeof identityData.avatar === "string" ? identityData.avatar : null;
+    const discordUserId = (typeof identityData.sub === "string" && identityData.sub)
+      || (typeof identityData.id === "string" && identityData.id)
+      || null;
+
+    if (avatarHash && discordUserId) {
+      return `https://cdn.discordapp.com/avatars/${discordUserId}/${avatarHash}.png`;
+    }
+
+    return null;
+  };
+
   const syncDiscordFields = async (authUser: User, pilotData: any) => {
     const { username, discordUserId } = getDiscordIdentity(authUser);
 
@@ -91,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: pilotData.id,
           pid: pilotData.pid,
           full_name: pilotData.full_name,
-          avatar_url: pilotData.avatar_url,
+          avatar_url: pilotData.avatar_url || getDiscordAvatarUrl(authUser || null),
           discord_username: pilotData.discord_username || discordUsernameFromOAuth,
           discord_user_id: pilotData.discord_user_id || discordUserIdFromOAuth,
           total_hours: Number(pilotData.total_hours) || 0,

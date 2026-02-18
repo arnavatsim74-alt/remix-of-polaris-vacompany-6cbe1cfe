@@ -12,6 +12,7 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import aeroflotLogo from "@/assets/aeroflot-logo.png";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const ICON_MAP: Record<string, any> = {
   Link: LinkIcon, Globe, MessageCircle, ExternalLink, BookOpen, HelpCircle, Star, Plane, Award, Calendar, Trophy, Target,
@@ -187,9 +188,12 @@ export function AppSidebar() {
         {pilot && !isCollapsed && (
           <div className="px-3 py-2">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-accent text-sidebar-accent-foreground text-xs font-medium">
-                {pilot.full_name.charAt(0).toUpperCase()}
-              </div>
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={pilot.avatar_url || undefined} alt={pilot.full_name} />
+                <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-xs font-medium">
+                  {pilot.full_name.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
               <div className="flex flex-col">
                 <span className="text-xs font-medium text-sidebar-foreground">{pilot.pid}</span>
                 <span className="text-xs text-sidebar-foreground/70 capitalize">{pilot.current_rank.replace(/_/g, " ")}</span>

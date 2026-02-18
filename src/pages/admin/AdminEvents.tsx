@@ -295,13 +295,12 @@ export default function AdminEvents() {
         banner_url: bannerUrl,
         available_dep_gates: event.available_dep_gates ? event.available_dep_gates.split(",").map((g) => g.trim()).filter(Boolean) : [],
         available_arr_gates: event.available_arr_gates ? event.available_arr_gates.split(",").map((g) => g.trim()).filter(Boolean) : [],
-        livery: selectedAc?.livery || null,
       } as any;
 
       const { data, error } = await supabase.from("events").insert(payload).select("*").single();
       if (error) throw error;
 
-      await notifyDiscordEventUpdate("event_created", payload);
+      await notifyDiscordEventUpdate("event_created", { ...payload, livery: selectedAc?.livery || null });
       return data;
     },
     onSuccess: () => {
@@ -311,7 +310,7 @@ export default function AdminEvents() {
       setBannerFile(null);
       setNewEvent(emptyEventForm);
     },
-    onError: () => toast.error("Failed to create event"),
+    onError: (error: any) => toast.error(error?.message ? `Failed to create event: ${error.message}` : "Failed to create event"),
     onSettled: () => setIsUploading(false),
   });
 
@@ -333,13 +332,12 @@ export default function AdminEvents() {
         aircraft_name: event.aircraft_name || null,
         available_dep_gates: event.available_dep_gates ? event.available_dep_gates.split(",").map((g) => g.trim()).filter(Boolean) : [],
         available_arr_gates: event.available_arr_gates ? event.available_arr_gates.split(",").map((g) => g.trim()).filter(Boolean) : [],
-        livery: selectedAc?.livery || null,
       } as any;
 
       const { data, error } = await supabase.from("events").update(payload).eq("id", editingEventId).select("*").single();
       if (error) throw error;
 
-      await notifyDiscordEventUpdate("event_updated", payload);
+      await notifyDiscordEventUpdate("event_updated", { ...payload, livery: selectedAc?.livery || null });
       return data;
     },
     onSuccess: () => {
@@ -349,7 +347,7 @@ export default function AdminEvents() {
       setIsEditDialogOpen(false);
       setEditingEventId(null);
     },
-    onError: () => toast.error("Failed to update event"),
+    onError: (error: any) => toast.error(error?.message ? `Failed to update event: ${error.message}` : "Failed to update event"),
   });
 
   const deleteEventMutation = useMutation({
