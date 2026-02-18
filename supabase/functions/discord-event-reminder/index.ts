@@ -28,7 +28,32 @@ const toUtcHm = (iso: string) => {
   return `${hh}:${mm} UTC`;
 };
 
-const createDiscordMessage = async (botToken: string, channelId: string, content: string) => {
+const createDiscordThread = async (botToken: string, eventName: string, startTimeIso: string) => {
+  const threadName = `${eventName} • ${toUtcHm(startTimeIso)}`.slice(0, 100);
+
+  const response = await fetch(`${DISCORD_API_BASE}/channels/${EVENT_REMINDER_CHANNEL_ID}/threads`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bot ${botToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: threadName,
+      auto_archive_duration: 1440,
+      type: 11,
+      reason: "Auto-created 30-minute event reminder thread",
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Discord thread creation failed (${response.status}): ${text}`);
+  }
+
+  return await response.json();
+};
+
+const postDiscordMessage = async (botToken: string, channelId: string, content: string) => {
   const response = await fetch(`${DISCORD_API_BASE}/channels/${channelId}/messages`, {
     method: "POST",
     headers: {
@@ -44,63 +69,6 @@ const createDiscordMessage = async (botToken: string, channelId: string, content
   }
 
   return await response.json();
-};
-
-const startThreadFromMessage = async (botToken: string, channelId: string, messageId: string, name: string) => {
-  const response = await fetch(`${DISCORD_API_BASE}/channels/${channelId}/messages/${messageId}/threads`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bot ${botToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name,
-      auto_archive_duration: 1440,
-      rate_limit_per_user: 0,
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Discord thread-from-message failed (${response.status}): ${text}`);
-  }
-
-  return await response.json();
-};
-
-const createDiscordThread = async (botToken: string, eventName: string, startTimeIso: string) => {
-  const threadName = `${eventName} • ${toUtcHm(startTimeIso)}`.slice(0, 100);
-
-  // Try "thread without message" first (forum/media channel support).
-  const response = await fetch(`${DISCORD_API_BASE}/channels/${EVENT_REMINDER_CHANNEL_ID}/threads`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bot ${botToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name: threadName,
-      auto_archive_duration: 1440,
-      type: 11,
-      reason: "Auto-created 30-minute event reminder thread",
-    }),
-  });
-
-  if (response.ok) {
-    return await response.json();
-  }
-
-  // Fallback for text channels: create a starter message then start thread from that message.
-  const fallbackReason = await response.text();
-  console.warn("Thread create without message failed; trying message-based thread:", fallbackReason);
-
-  const starterMessage = await createDiscordMessage(
-    botToken,
-    EVENT_REMINDER_CHANNEL_ID,
-    `⏰ Event reminder thread created for **${eventName || "Event"}** (${toUtcHm(startTimeIso)}).`,
-  );
-
-  return await startThreadFromMessage(botToken, EVENT_REMINDER_CHANNEL_ID, starterMessage.id, threadName);
 };
 
 serve(async (req) => {
@@ -134,7 +102,7 @@ serve(async (req) => {
 
     const { data: upcomingEvents, error: eventsError } = await supabase
       .from("events")
-      .select("id,name,start_time,dep_icao,arr_icao")
+      .select("id,name,start_time,end_time,dep_icao,arr_icao,banner_url,aircraft_icao,aircraft_name")
       .eq("is_active", true)
       .gte("start_time", now.toISOString())
       .lte("start_time", inThirtyMinutes.toISOString())
@@ -178,45 +146,52 @@ serve(async (req) => {
         if (regError) throw regError;
 
         const regRows = (registrations || []) as RegistrationRow[];
-        const userIds = regRows
-          .map((r) => r.pilot?.user_id)
-          .filter((id): id is string => Boolean(id));
+        const userIds = regRows.map((r) => r.pilot?.user_id).filter((id): id is string => Boolean(id));
 
         const identityIdMap = new Map<string, string>();
         const identityUsernameMap = new Map<string, string>();
         if (userIds.length) {
-          const { data: identities, error: identitiesError } = await supabase
+          const { data: identities } = await supabase
             .schema("auth")
             .from("identities")
             .select("user_id,provider_id,identity_data")
             .eq("provider", "discord")
             .in("user_id", userIds);
 
-          if (!identitiesError && identities?.length) {
-            for (const it of identities as any[]) {
-              if (it.user_id && it.provider_id) identityIdMap.set(it.user_id, it.provider_id);
-              const identityData = (it.identity_data || {}) as Record<string, any>;
-              const discordUsername = String(identityData.global_name || identityData.username || "").trim();
-              if (it.user_id && discordUsername) identityUsernameMap.set(it.user_id, discordUsername);
-            }
+          for (const it of identities || []) {
+            const row: any = it;
+            if (row.user_id && row.provider_id) identityIdMap.set(row.user_id, row.provider_id);
+            const iData = (row.identity_data || {}) as Record<string, any>;
+            const uname = String(iData.global_name || iData.username || "").trim();
+            if (row.user_id && uname) identityUsernameMap.set(row.user_id, uname);
           }
         }
 
         const authDisplayNameMap = new Map<string, string>();
         if (userIds.length) {
-          const { data: authUsers, error: authUsersError } = await supabase
+          const { data: authUsers } = await supabase
             .schema("auth")
             .from("users")
             .select("id,email,raw_user_meta_data")
             .in("id", userIds);
 
-          if (!authUsersError && authUsers?.length) {
-            for (const u of authUsers as any[]) {
-              const meta = (u.raw_user_meta_data || {}) as Record<string, any>;
-              const display = String(meta.full_name || meta.name || meta.global_name || meta.preferred_username || u.email || "").trim();
-              if (u.id && display) authDisplayNameMap.set(u.id, display);
-            }
+          for (const u of authUsers || []) {
+            const row: any = u;
+            const meta = (row.raw_user_meta_data || {}) as Record<string, any>;
+            const display = String(meta.full_name || meta.name || meta.global_name || meta.preferred_username || row.email || "").trim();
+            if (row.id && display) authDisplayNameMap.set(row.id, display);
           }
+        }
+
+        let aircraftDisplay = event.aircraft_name || event.aircraft_icao || "Any";
+        if (event.aircraft_icao) {
+          const { data: aircraftRows } = await supabase
+            .from("aircraft")
+            .select("livery")
+            .eq("icao_code", event.aircraft_icao)
+            .not("livery", "is", null);
+          const livery = [...new Set((aircraftRows || []).map((r: any) => String(r.livery || "").trim()).filter(Boolean))][0];
+          if (livery) aircraftDisplay = `${aircraftDisplay} (${livery})`;
         }
 
         const lines = regRows.length
@@ -228,34 +203,33 @@ serve(async (req) => {
               const pilotName = r.pilot?.full_name || r.pilot?.pid || "Pilot";
 
               const display = discordId
-                ? `<@${discordId}>`
+                ? `**__<@${discordId}>__**`
                 : discordUsername
-                  ? `@${discordUsername}`
-                  : authDisplayName || pilotName;
+                  ? `**__@${discordUsername}__**`
+                  : `**__${authDisplayName || pilotName}__**`;
 
-              return `• ${display} — DEP Gate: ${r.assigned_dep_gate || "TBD"} | ARR Gate: ${r.assigned_arr_gate || "TBD"}`;
+              return `• ${display} — DEP Gate: **${r.assigned_dep_gate || "TBD"}** | ARR Gate: **${r.assigned_arr_gate || "TBD"}**`;
             })
           : ["No pilots registered yet."];
 
         const thread = await createDiscordThread(discordBotToken, event.name || "Event", event.start_time);
 
         const header = [
-          `Event starts in 30 minutes: **${event.name || "Event"}**`,
-          `Route: ${event.dep_icao || "----"} → ${event.arr_icao || "----"}`,
-          `Start: ${toUtcHm(event.start_time)}`,
+          `## ✈️ ${event.name || "Event"}`,
+          `**Route:** ${event.dep_icao || "----"} → ${event.arr_icao || "----"}`,
+          `**Aircraft:** ${aircraftDisplay}`,
+          `**Start (Zulu):** ${toUtcHm(event.start_time)}`,
+          `**End (Zulu):** ${event.end_time ? toUtcHm(event.end_time) : "N/A"}`,
+          event.banner_url ? `**Image:** ${event.banner_url}` : "",
           "",
-          "Registered pilots and assigned gates:",
-        ].join("\n");
+          `### 🛬 Gate Assignments`,
+        ].filter(Boolean).join("\n");
 
-        await createDiscordMessage(discordBotToken, thread.id, `${header}\n${lines.join("\n")}`.slice(0, 1900));
+        await postDiscordMessage(discordBotToken, thread.id, `${header}\n${lines.join("\n")}`.slice(0, 1900));
 
         const { error: saveError } = await supabase
           .from("event_discord_reminders")
-          .insert({
-            event_id: event.id,
-            reminder_type: "t_minus_30m",
-            thread_id: thread.id,
-          });
+          .insert({ event_id: event.id, reminder_type: "t_minus_30m", thread_id: thread.id });
 
         if (saveError) throw saveError;
 

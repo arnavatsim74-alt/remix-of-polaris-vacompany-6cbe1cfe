@@ -9,6 +9,15 @@ import { Calendar, MapPin, Clock, Users, Plane, Check } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
+const formatLocalWithTimezone = (iso: string) => {
+  const d = new Date(iso);
+  const date = format(d, "MMM dd, HH:mm");
+  const tz = new Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
+    .formatToParts(d)
+    .find((p) => p.type === "timeZoneName")?.value || "Local";
+  return `${date} ${tz}`;
+};
+
 export default function Events() {
   const { pilot } = useAuth();
   const queryClient = useQueryClient();
@@ -122,8 +131,7 @@ export default function Events() {
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     <span>
-                      {format(new Date(event.start_time), "MMM dd, HH:mm")}z -{" "}
-                      {format(new Date(event.end_time), "HH:mm")}z
+                      {formatLocalWithTimezone(event.start_time)} - {formatLocalWithTimezone(event.end_time)}
                     </span>
                   </div>
 

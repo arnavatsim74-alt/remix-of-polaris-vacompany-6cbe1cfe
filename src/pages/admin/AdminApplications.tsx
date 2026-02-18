@@ -318,8 +318,8 @@ export default function AdminApplications() {
               <p><strong>Email:</strong> {selectedApp?.email}</p>
               <p><strong>Experience:</strong> {selectedApp?.experience_level}</p>
               <p><strong>Simulator:</strong> {selectedApp?.preferred_simulator}</p>
-              {selectedApp?.vatsim_id && <p><strong>VATSIM:</strong> {selectedApp?.vatsim_id}</p>}
-              {selectedApp?.ivao_id && <p><strong>IVAO:</strong> {selectedApp?.ivao_id}</p>}
+              {selectedApp?.vatsim_id && <p><strong>IFC Username:</strong> {selectedApp?.vatsim_id}</p>}
+              {selectedApp?.ivao_id && <p><strong>Preferred Callsign:</strong> {selectedApp?.ivao_id}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Assigned PID</label>
@@ -402,13 +402,13 @@ export default function AdminApplications() {
               </div>
               {selectedApp?.vatsim_id && (
                 <div>
-                  <p className="text-muted-foreground">VATSIM ID</p>
+                  <p className="text-muted-foreground">IFC Username</p>
                   <p className="font-medium">{selectedApp?.vatsim_id}</p>
                 </div>
               )}
               {selectedApp?.ivao_id && (
                 <div>
-                  <p className="text-muted-foreground">IVAO VID</p>
+                  <p className="text-muted-foreground">Preferred Callsign</p>
                   <p className="font-medium">{selectedApp?.ivao_id}</p>
                 </div>
               )}

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layouts/AppSidebar";
@@ -10,6 +11,17 @@ import { PolarisFooter } from "@/components/PolarisFooter";
 
 export function AppLayout() {
   const headerLogo = vacompanyLogo;
+  const [zuluTime, setZuluTime] = useState("");
+
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setZuluTime(now.toISOString().slice(11, 19));
+    };
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <SidebarProvider>
@@ -21,6 +33,9 @@ export function AppLayout() {
             <div className="flex h-full items-center gap-4 px-4">
               <SidebarTrigger className="-ml-1" />
               <div className="flex-1" />
+              <div className="hidden sm:flex items-center rounded-md border px-2 py-1 text-xs font-mono text-muted-foreground">
+                Zulu {zuluTime}Z
+              </div>
               <a href={VACOMPANY_URL} target="_blank" rel="noopener noreferrer" aria-label="Visit VACompany">
                 <img
                   src={headerLogo}

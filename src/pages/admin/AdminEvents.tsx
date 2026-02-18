@@ -283,7 +283,7 @@ export default function AdminEvents() {
             </SelectTrigger>
             <SelectContent>
               {aircraft?.map((ac) => (
-                <SelectItem key={ac.id} value={ac.icao_code}>{ac.name} ({ac.icao_code})</SelectItem>
+                <SelectItem key={ac.id} value={ac.icao_code}>{ac.name} ({ac.icao_code}){ac.livery ? ` - ${ac.livery}` : ""}</SelectItem>
               ))}
             </SelectContent>
           </Select>
