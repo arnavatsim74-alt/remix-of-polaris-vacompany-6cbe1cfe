@@ -65,7 +65,7 @@ const embedResponse = ({
           image: imageUrl ? { url: imageUrl } : undefined,
           timestamp: new Date().toISOString(),
         },
-      ],
+        ],
       ...(ephemeral ? { flags: 64 } : {}),
     },
   });
@@ -316,14 +316,14 @@ const handlePirep = async (body: any) => {
     title: "PIREP Filed Successfully",
     description: `**${String(options.flight_number).toUpperCase()}** • ${String(options.dep_icao).toUpperCase()} → ${String(options.arr_icao).toUpperCase()}`,
     color: COLORS.GREEN,
-    fields: [
+      fields: [
       { name: "Pilot", value: pilot.full_name, inline: true },
       { name: "Aircraft", value: aircraftWithLivery || "N/A", inline: true },
       { name: "Operator", value: String(options.operator || "N/A"), inline: true },
       { name: "Hours", value: `${Number(options.flight_hours || 0).toFixed(1)}h`, inline: true },
       { name: "Multiplier", value: `${multiplierValue.toFixed(1)}x`, inline: true },
       { name: "Status", value: "Pending Review", inline: true },
-    ],
+      ],
   });
 };
 
@@ -345,24 +345,59 @@ const handleGetEvents = async () => {
     return embedResponse({
       title: "Upcoming Events",
       description: "No events scheduled in the next 2 days.",
-      color: COLORS.BLUE,
+        color: COLORS.BLUE,
     });
   }
 
-  const embeds = events.map((event: any) => ({
-    title: `✈️ ${event.name}`,
-    description: event.description || "Join this upcoming community event.",
-    color: COLORS.BLUE,
-    fields: [
-      { name: "Route", value: `${event.dep_icao} → ${event.arr_icao}`, inline: true },
-      { name: "Server", value: event.server, inline: true },
-      { name: "Start", value: toDiscordDate(event.start_time), inline: false },
-      { name: "End", value: toDiscordDate(event.end_time), inline: false },
-      { name: "Aircraft", value: event.aircraft_name || event.aircraft_icao || "Any", inline: true },
-    ],
-    image: event.banner_url ? { url: event.banner_url } : undefined,
-    footer: { text: "Use the Participate button below to auto-assign your gates." },
-  }));
+  const eventAircraftIcaos = Array.from(
+    new Set(
+      (events || [])
+        .map((event: any) => String(event?.aircraft_icao || "").trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  );
+
+  const liveryByIcao = new Map<string, string>();
+  if (eventAircraftIcaos.length) {
+    const { data: aircraftRows } = await supabase
+      .from("aircraft")
+      .select("icao_code,livery")
+      .in("icao_code", eventAircraftIcaos)
+      .not("livery", "is", null);
+
+    for (const row of aircraftRows || []) {
+      const icao = String((row as any).icao_code || "").trim().toUpperCase();
+      const livery = String((row as any).livery || "").trim();
+      if (!icao || !livery) continue;
+      if (!liveryByIcao.has(icao)) liveryByIcao.set(icao, livery);
+    }
+  }
+
+  const embeds = events.map((event: any) => {
+    const icao = String(event?.aircraft_icao || "").trim().toUpperCase();
+    const eventAircraftName = String(event?.aircraft_name || "").trim();
+    const livery = liveryByIcao.get(icao);
+    const aircraftDisplay = eventAircraftName
+      ? eventAircraftName
+      : icao
+        ? `${icao}${livery ? ` (${livery})` : ""}`
+        : "Any";
+
+    return {
+      title: `✈️ ${event.name}`,
+      description: event.description || "Join this upcoming community event.",
+      color: COLORS.BLUE,
+      fields: [
+        { name: "Route", value: `${event.dep_icao} → ${event.arr_icao}`, inline: true },
+        { name: "Server", value: event.server, inline: true },
+        { name: "Start", value: toDiscordDate(event.start_time), inline: false },
+        { name: "End", value: toDiscordDate(event.end_time), inline: false },
+        { name: "Aircraft", value: aircraftDisplay, inline: true },
+      ],
+      image: event.banner_url ? { url: event.banner_url } : undefined,
+      footer: { text: "Use the Participate button below to auto-assign your gates." },
+    };
+  });
 
   const components = events.map((event: any) => ({
     type: 1,
@@ -373,7 +408,7 @@ const handleGetEvents = async () => {
         label: `Participate • ${event.dep_icao}-${event.arr_icao}`.slice(0, 80),
         custom_id: `event_join:${event.id}`,
       },
-    ],
+      ],
   }));
 
   return Response.json({ type: 4, data: { embeds, components } });
@@ -401,7 +436,7 @@ const handleLeaderboard = async () => {
   return embedResponse({
     title: "🏆 Top 5 Pilot Leaderboard",
     description: lines,
-    color: COLORS.BLUE,
+      color: COLORS.BLUE,
   });
 };
 
@@ -420,7 +455,7 @@ const handleChallengeList = async () => {
   const embeds = challenges.map((c: any) => ({
     title: `🎯 ${c.name}`,
     description: c.description || "Community challenge",
-    color: COLORS.BLUE,
+      color: COLORS.BLUE,
     fields: c.destination_icao ? [{ name: "Destination", value: c.destination_icao, inline: true }] : [],
     image: c.image_url ? { url: c.image_url } : undefined,
   }));
@@ -458,7 +493,7 @@ const handleNotams = async () => {
     title: `📢 ${n.title}`,
     description: String(n.content || "").slice(0, 350),
     color: notamColor(n.priority),
-    fields: [{ name: "Priority", value: String(n.priority || "info").toUpperCase(), inline: true }],
+      fields: [{ name: "Priority", value: String(n.priority || "info").toUpperCase(), inline: true }],
   }));
 
   return Response.json({ type: 4, data: { embeds } });
