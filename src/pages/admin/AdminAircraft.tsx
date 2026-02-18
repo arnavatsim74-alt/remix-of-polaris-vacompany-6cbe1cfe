@@ -63,8 +63,9 @@ export default function AdminAircraft() {
 
 
 
-  const rankOptions = (ranks || []).filter((r: any) => enumPilotRanks.includes(r.name));
-  const hasInvalidRankConfigs = (ranks || []).some((r: any) => !enumPilotRanks.includes(r.name));
+  const rankOptions = (ranks && ranks.length > 0)
+    ? ranks
+    : enumPilotRanks.map((name) => ({ name, label: formatRankLabel(name) }));
 
   const saveMutation = useMutation({
     mutationFn: async (data: AircraftForm & { id?: string }) => {
@@ -214,9 +215,6 @@ export default function AdminAircraft() {
                     ))}
                   </SelectContent>
                 </Select>
-                {hasInvalidRankConfigs && (
-                  <p className="text-xs text-amber-600">Some rank slugs are invalid for aircraft unlock enum and were hidden. Use system ranks only.</p>
-                )}
               </div>
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
@@ -240,8 +238,8 @@ export default function AdminAircraft() {
             <DialogFooter>
               <Button variant="outline" onClick={closeDialog}>Cancel</Button>
               <Button onClick={() => {
-                if (!rankOptions.some((r: any) => r.name === form.min_rank)) {
-                  toast.error("Please select a valid rank from rank configuration");
+                if (!form.min_rank) {
+                  toast.error("Please select a minimum rank");
                   return;
                 }
                 saveMutation.mutate({ ...form, id: editingId || undefined });
