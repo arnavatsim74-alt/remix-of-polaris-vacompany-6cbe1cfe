@@ -11,8 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:conflicts": "bash scripts/check-conflict-markers.sh",
-    "bot:discord": "node discord-bot/bot.mjs"
+    "check:conflicts": "bash scripts/check-conflict-markers.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -64,8 +63,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
-    "zod": "^3.25.76",
-    "discord.js": "^14.16.3"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",

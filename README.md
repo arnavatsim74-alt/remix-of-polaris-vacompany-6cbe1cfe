@@ -114,3 +114,48 @@ Try:
 - Check [Supabase status](https://status.supabase.com/).
 - Retry with another network/VPN.
 - Confirm your `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correct in Vercel env vars.
+
+## Discord Bot via Supabase Edge Function (`/pirep`)
+
+You can host the Discord slash-command bot as a Supabase Edge Function (no separate Node host required).
+
+### 1) Deploy function
+
+Function path:
+- `supabase/functions/discord-pirep-bot/index.ts`
+
+Deploy:
+
+```bash
+supabase functions deploy discord-pirep-bot
+```
+
+### 2) Discord Developer Portal setup
+
+- Set **Interactions Endpoint URL** to:
+  - `https://<project-ref>.supabase.co/functions/v1/discord-pirep-bot`
+- In your app commands, create `/pirep` with options:
+  - `flight_number` (string)
+  - `dep_icao` (string)
+  - `arr_icao` (string)
+  - `operator` (string, autocomplete)
+  - `aircraft` (string, autocomplete)
+  - `flight_type` (string: passenger/cargo)
+  - `flight_hours` (number)
+  - `flight_date` (string, optional, YYYY-MM-DD)
+
+> Note: This is different from OAuth redirect URLs. Redirect URLs are for login flow; bot slash commands use the Interactions Endpoint URL.
+
+### 3) Required secrets (Edge Function)
+
+Set these in Supabase secrets:
+- `DISCORD_PUBLIC_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+### 4) Link Discord user to pilot
+
+Migration included:
+- `supabase/migrations/20260218090000_add_discord_user_id_to_pilots.sql`
+
+This adds `pilots.discord_user_id`, which the bot uses to resolve `pilot_id` before inserting a PIREP.
