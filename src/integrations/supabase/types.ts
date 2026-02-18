@@ -1086,6 +1086,7 @@ export type Database = {
           created_at: string | null
           current_rank: string | null
           discord_user_id: string | null
+          discord_username: string | null
           full_name: string
           id: string
           ivao_id: string | null
@@ -1101,6 +1102,7 @@ export type Database = {
           created_at?: string | null
           current_rank?: string | null
           discord_user_id?: string | null
+          discord_username?: string | null
           full_name: string
           id?: string
           ivao_id?: string | null
@@ -1116,6 +1118,7 @@ export type Database = {
           created_at?: string | null
           current_rank?: string | null
           discord_user_id?: string | null
+          discord_username?: string | null
           full_name?: string
           id?: string
           ivao_id?: string | null

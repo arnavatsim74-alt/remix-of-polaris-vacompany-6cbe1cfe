@@ -54,7 +54,7 @@ const getAircraft = async () => {
   return (data || []).slice(0, 500);
 };
 
-const resolvePilotByDiscordUser = async (discordUserId: string) => {
+const resolvePilotByDiscordUser = async (discordUserId: string, discordUsername?: string | null) => {
   const { data: identities, error: identityErr } = await supabase
     .schema("auth")
     .from("identities")
@@ -90,7 +90,28 @@ const resolvePilotByDiscordUser = async (discordUserId: string) => {
     console.error("Failed legacy pilot lookup via discord_user_id", legacyErr);
   }
 
-  return pilotByLegacyMap;
+  if (pilotByLegacyMap?.id) {
+    return pilotByLegacyMap;
+  }
+
+  if (discordUsername) {
+    const normalizedUsername = String(discordUsername).replace(/^@+/, "").trim();
+    const { data: pilotByUsername, error: usernameErr } = await supabase
+      .from("pilots")
+      .select("id,pid,full_name")
+      .ilike("discord_username", normalizedUsername)
+      .maybeSingle();
+
+    if (usernameErr) {
+      console.error("Failed username pilot lookup via discord_username", usernameErr);
+    }
+
+    if (pilotByUsername?.id) {
+      return pilotByUsername;
+    }
+  }
+
+  return null;
 };
 
 serve(async (req) => {
@@ -141,7 +162,8 @@ serve(async (req) => {
       return Response.json({ type: 4, data: { content: "Could not identify your Discord account.", flags: 64 } });
     }
 
-    const pilot = await resolvePilotByDiscordUser(discordUserId);
+    const discordUsername = body.member?.user?.username || body.user?.username || null;
+    const pilot = await resolvePilotByDiscordUser(discordUserId, discordUsername);
 
     if (!pilot?.id) {
       return Response.json({

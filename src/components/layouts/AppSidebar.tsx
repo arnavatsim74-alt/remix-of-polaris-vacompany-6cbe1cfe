@@ -1,6 +1,7 @@
 import { useLocation, Link } from "react-router-dom";
 import {
   LayoutDashboard, FileText, History, Route, Trophy, Calendar, Info, Shield, Users, Star, Plane, Award, Zap, Settings, AlertTriangle, Target, Megaphone, CreditCard, Link as LinkIcon, Globe, MessageCircle, ExternalLink, BookOpen, HelpCircle, MapPin, Activity,
+  UserCog,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ const pilotNavItems = [
   { title: "Tracker", url: "/tracker", icon: MapPin },
   { title: "Academy", url: "/academy", icon: BookOpen },
   { title: "Activity", url: "/activity", icon: Activity },
+  { title: "Profile Settings", url: "/profile", icon: UserCog },
 ];
 
 const adminNavItems = [

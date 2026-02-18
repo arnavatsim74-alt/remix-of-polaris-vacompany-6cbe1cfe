@@ -7,6 +7,8 @@ interface Pilot {
   pid: string;
   full_name: string;
   avatar_url: string | null;
+  discord_username?: string | null;
+  discord_user_id?: string | null;
   total_hours: number;
   total_pireps: number;
   current_rank: string;
@@ -34,7 +36,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchPilotData = async (userId: string) => {
+  const getDiscordIdentity = (authUser: User | null) => {
+    const discordIdentity = authUser?.identities?.find((identity) => identity.provider === "discord");
+    if (!discordIdentity) return { username: null as string | null, discordUserId: null as string | null };
+
+    const identityData = (discordIdentity.identity_data || {}) as Record<string, unknown>;
+    const rawUsername =
+      (typeof identityData.username === "string" && identityData.username) ||
+      (typeof identityData.global_name === "string" && identityData.global_name) ||
+      (typeof identityData.preferred_username === "string" && identityData.preferred_username) ||
+      null;
+
+    const username = rawUsername ? rawUsername.replace(/^@+/, "").trim() : null;
+    const discordUserId = typeof identityData.sub === "string" ? identityData.sub : null;
+
+    return { username, discordUserId };
+  };
+
+  const syncDiscordFields = async (authUser: User, pilotData: any) => {
+    const { username, discordUserId } = getDiscordIdentity(authUser);
+
+    if (!username && !discordUserId) return;
+
+    const patch: Record<string, string> = {};
+    if (username && !pilotData.discord_username) patch.discord_username = username;
+    if (discordUserId && !pilotData.discord_user_id) patch.discord_user_id = discordUserId;
+
+    if (Object.keys(patch).length === 0) return;
+
+    const { error } = await supabase.from("pilots").update(patch).eq("id", pilotData.id);
+    if (error) {
+      console.error("Failed to sync Discord profile fields:", error);
+    }
+  };
+
+  const fetchPilotData = async (userId: string, authUser?: User) => {
     try {
       const { data: pilotData } = await supabase
         .from("pilots")
@@ -43,11 +79,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (pilotData) {
+        if (authUser) {
+          await syncDiscordFields(authUser, pilotData);
+        }
+
+        const { username: discordUsernameFromOAuth, discordUserId: discordUserIdFromOAuth } = authUser
+          ? getDiscordIdentity(authUser)
+          : { username: null, discordUserId: null };
+
         setPilot({
           id: pilotData.id,
           pid: pilotData.pid,
           full_name: pilotData.full_name,
           avatar_url: pilotData.avatar_url,
+          discord_username: pilotData.discord_username || discordUsernameFromOAuth,
+          discord_user_id: pilotData.discord_user_id || discordUserIdFromOAuth,
           total_hours: Number(pilotData.total_hours) || 0,
           total_pireps: pilotData.total_pireps || 0,
           current_rank: pilotData.current_rank || "cadet",
@@ -92,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshPilot = async () => {
-    if (user) await fetchPilotData(user.id);
+    if (user) await fetchPilotData(user.id, user);
   };
 
   useEffect(() => {
@@ -103,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           setTimeout(() => {
-            fetchPilotData(session.user.id).then(() => {
+            fetchPilotData(session.user.id, session.user).then(() => {
               // After fetching, try admin setup if needed
               tryAdminSetup(session);
             });
@@ -120,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchPilotData(session.user.id).then(() => {
+        fetchPilotData(session.user.id, session.user).then(() => {
           tryAdminSetup(session);
         });
       }

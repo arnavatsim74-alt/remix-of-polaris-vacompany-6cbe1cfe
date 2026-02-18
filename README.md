@@ -177,4 +177,14 @@ The handler resolves the pilot by Discord identity from Supabase Auth (`auth.ide
 Fallback support remains for legacy manual linking:
 - `supabase/migrations/20260218090000_add_discord_user_id_to_pilots.sql`
 
+Additional fallback by Discord username (set in profile settings):
+- `supabase/migrations/20260218101500_add_discord_username_to_pilots.sql`
+
 If a user has signed into the VA site with Discord, the bot can file their PIREP without manual ID mapping.
+
+### 6) Pilot Profile Settings: Discord username
+
+Pilots can now set their Discord username at `/profile`.
+
+- If the pilot signed in with Discord OAuth, the app auto-detects and pre-fills the username.
+- The value is saved to `pilots.discord_username` and used as a fallback mapping source by the bot handler.
