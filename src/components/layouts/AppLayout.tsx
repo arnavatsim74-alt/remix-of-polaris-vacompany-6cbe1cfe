@@ -13,7 +13,7 @@ export function AppLayout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="h-screen flex w-full overflow-hidden">
         <AppSidebar />
         <div className="flex-1 flex flex-col">
           {/* Header */}
@@ -35,12 +35,12 @@ export function AppLayout() {
           </header>
 
           {/* Main content */}
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-y-auto">
             <div className="container py-6 animate-fade-in">
               <Outlet />
             </div>
+            <PolarisFooter />
           </main>
-          <PolarisFooter />
         </div>
       </div>
     </SidebarProvider>
