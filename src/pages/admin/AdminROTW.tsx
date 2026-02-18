@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -28,6 +29,8 @@ export default function AdminROTW() {
   // Featured route state
   const [isFeaturedDialogOpen, setIsFeaturedDialogOpen] = useState(false);
   const [featuredRouteId, setFeaturedRouteId] = useState("");
+  const [rotwRouteSearch, setRotwRouteSearch] = useState("");
+  const [featuredRouteSearch, setFeaturedRouteSearch] = useState("");
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -166,6 +169,16 @@ export default function AdminROTW() {
   const getRouteForDay = (dayIndex: number) => {
     return rotwRoutes?.find((r: any) => r.day_of_week === dayIndex);
   };
+
+  const routeMatchesSearch = (route: any, query: string) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    const text = `${route.route_number} ${route.dep_icao} ${route.arr_icao} ${route.aircraft_icao} ${route.livery || ""}`.toLowerCase();
+    return text.includes(q);
+  };
+
+  const filteredRotwRoutes = (routes || []).filter((route: any) => routeMatchesSearch(route, rotwRouteSearch));
+  const filteredFeaturedRoutes = (routes || []).filter((route: any) => routeMatchesSearch(route, featuredRouteSearch));
 
   const openAddDialog = (dayIndex: number) => {
     setSelectedDay(dayIndex);
@@ -314,18 +327,25 @@ export default function AdminROTW() {
             <DialogTitle>Assign Route — {selectedDay !== null ? dayNames[selectedDay] : ""}</DialogTitle>
             <DialogDescription>Select a route to feature on this day</DialogDescription>
           </DialogHeader>
-          <Select value={selectedRoute} onValueChange={setSelectedRoute}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a route" />
-            </SelectTrigger>
-            <SelectContent>
-              {routes?.map((route) => (
-                <SelectItem key={route.id} value={route.id}>
-                  {route.route_number} — {route.dep_icao} → {route.arr_icao} ({route.aircraft_icao})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Input
+              value={rotwRouteSearch}
+              onChange={(e) => setRotwRouteSearch(e.target.value)}
+              placeholder="Search route number, ICAO, aircraft..."
+            />
+            <Select value={selectedRoute} onValueChange={setSelectedRoute}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a route" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredRotwRoutes.map((route: any) => (
+                  <SelectItem key={route.id} value={route.id}>
+                    {route.route_number} — {route.dep_icao} → {route.arr_icao} ({route.aircraft_icao})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
             <Button
@@ -346,18 +366,25 @@ export default function AdminROTW() {
             <DialogTitle>Add Featured Route</DialogTitle>
             <DialogDescription>This route will appear on the dashboard and be sent to Discord.</DialogDescription>
           </DialogHeader>
-          <Select value={featuredRouteId} onValueChange={setFeaturedRouteId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a route" />
-            </SelectTrigger>
-            <SelectContent>
-              {routes?.map((route) => (
-                <SelectItem key={route.id} value={route.id}>
-                  {route.route_number} — {route.dep_icao} → {route.arr_icao} ({route.aircraft_icao})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Input
+              value={featuredRouteSearch}
+              onChange={(e) => setFeaturedRouteSearch(e.target.value)}
+              placeholder="Search route number, ICAO, aircraft..."
+            />
+            <Select value={featuredRouteId} onValueChange={setFeaturedRouteId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a route" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredFeaturedRoutes.map((route: any) => (
+                  <SelectItem key={route.id} value={route.id}>
+                    {route.route_number} — {route.dep_icao} → {route.arr_icao} ({route.aircraft_icao})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsFeaturedDialogOpen(false)}>Cancel</Button>
             <Button

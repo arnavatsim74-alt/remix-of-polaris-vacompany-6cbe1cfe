@@ -7,11 +7,11 @@ create index if not exists idx_event_registrations_discord_user_id
 
 -- Backfill existing rows from pilots table (legacy/manual mapping).
 update public.event_registrations er
-set discord_user_id = to_jsonb(p) ->> 'discord_user_id'
+set discord_user_id = p.discord_user_id
 from public.pilots p
 where er.pilot_id = p.id
   and er.discord_user_id is null
-  and (to_jsonb(p) ->> 'discord_user_id') is not null;
+  and p.discord_user_id is not null;
 
 -- Update registration function to auto-capture Discord ID from auth identity when available.
 create or replace function public.register_for_event(p_event_id uuid, p_pilot_id uuid)
@@ -44,7 +44,7 @@ begin
 
   -- Fallback to pilot stored discord_user_id if present.
   if v_discord_user_id is null then
-    select to_jsonb(p) ->> 'discord_user_id' into v_discord_user_id
+    select p.discord_user_id into v_discord_user_id
     from public.pilots p
     where p.id = p_pilot_id
     limit 1;
