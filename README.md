@@ -115,47 +115,66 @@ Try:
 - Retry with another network/VPN.
 - Confirm your `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correct in Vercel env vars.
 
-## Discord Bot via Supabase Edge Function (`/pirep`)
+## Discord Bot via Supabase Edge Functions (`/pirep`)
 
-You can host the Discord slash-command bot as a Supabase Edge Function (no separate Node host required).
+You can host the Discord slash-command bot fully in Supabase with **two functions**:
 
-### 1) Deploy function
+- `discord-pirep-register` (one-time command registration)
+- `discord-pirep-bot` (Discord interaction handler)
 
-Function path:
-- `supabase/functions/discord-pirep-bot/index.ts`
-
-Deploy:
+### 1) Deploy both functions
 
 ```bash
+supabase functions deploy discord-pirep-register
 supabase functions deploy discord-pirep-bot
 ```
 
-### 2) Discord Developer Portal setup
-
-- Set **Interactions Endpoint URL** to:
-  - `https://<project-ref>.supabase.co/functions/v1/discord-pirep-bot`
-- In your app commands, create `/pirep` with options:
-  - `flight_number` (string)
-  - `dep_icao` (string)
-  - `arr_icao` (string)
-  - `operator` (string, autocomplete)
-  - `aircraft` (string, autocomplete)
-  - `flight_type` (string: passenger/cargo)
-  - `flight_hours` (number)
-  - `flight_date` (string, optional, YYYY-MM-DD)
-
-> Note: This is different from OAuth redirect URLs. Redirect URLs are for login flow; bot slash commands use the Interactions Endpoint URL.
-
-### 3) Required secrets (Edge Function)
+### 2) Required secrets
 
 Set these in Supabase secrets:
+
+For `discord-pirep-register`:
+- `DISCORD_BOT_TOKEN`
+- `DISCORD_APPLICATION_ID`
+- `DISCORD_REGISTER_SECRET` (optional but recommended; send in `x-register-secret` when calling register function)
+
+For `discord-pirep-bot`:
 - `DISCORD_PUBLIC_KEY`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
-### 4) Link Discord user to pilot
+### 3) Register `/pirep` command (one-time)
 
-Migration included:
+Call the register endpoint once (or whenever command schema changes):
+
+```bash
+curl -X POST \
+  https://<project-ref>.supabase.co/functions/v1/discord-pirep-register \
+  -H "x-register-secret: <your DISCORD_REGISTER_SECRET if set>"
+```
+
+This creates a global `/pirep` command with options:
+- `flight_number` (string)
+- `dep_icao` (string)
+- `arr_icao` (string)
+- `operator` (string, autocomplete)
+- `aircraft` (string, autocomplete)
+- `flight_type` (string: passenger/cargo/charter)
+- `flight_hours` (number)
+- `flight_date` (string, optional, YYYY-MM-DD)
+
+### 4) Discord Developer Portal setup
+
+Set **Interactions Endpoint URL** to:
+- `https://<project-ref>.supabase.co/functions/v1/discord-pirep-bot`
+
+> Note: This is different from OAuth redirect URLs. Redirect URLs are for login flow; bot slash commands use the Interactions Endpoint URL.
+
+### 5) Pilot resolution (no manual per-user mapping required)
+
+The handler resolves the pilot by Discord identity from Supabase Auth (`auth.identities` provider `discord` -> `pilots.user_id`).
+
+Fallback support remains for legacy manual linking:
 - `supabase/migrations/20260218090000_add_discord_user_id_to_pilots.sql`
 
-This adds `pilots.discord_user_id`, which the bot uses to resolve `pilot_id` before inserting a PIREP.
+If a user has signed into the VA site with Discord, the bot can file their PIREP without manual ID mapping.

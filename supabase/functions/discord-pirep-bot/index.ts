@@ -26,12 +26,11 @@ const verifyDiscordRequest = async (req: Request, rawBody: string) => {
   if (!signature || !timestamp || !DISCORD_PUBLIC_KEY) return false;
 
   const encoder = new TextEncoder();
-  const isValid = nacl.sign.detached.verify(
+  return nacl.sign.detached.verify(
     encoder.encode(timestamp + rawBody),
     toHexBytes(signature),
     toHexBytes(DISCORD_PUBLIC_KEY),
   );
-  return isValid;
 };
 
 const parseOptions = (options: any[] = []) => {
@@ -43,12 +42,55 @@ const parseOptions = (options: any[] = []) => {
 const getOperators = async () => {
   const { data } = await supabase.from("site_settings").select("value").eq("key", "pirep_operators").maybeSingle();
   const raw = data?.value || "RAM,SU,ATR";
-  return raw.split(",").map((x: string) => x.trim()).filter(Boolean).slice(0, 25);
+  return raw
+    .split(",")
+    .map((x: string) => x.trim())
+    .filter(Boolean)
+    .slice(0, 25);
 };
 
 const getAircraft = async () => {
   const { data } = await supabase.from("aircraft").select("icao_code,name").order("icao_code");
   return (data || []).slice(0, 500);
+};
+
+const resolvePilotByDiscordUser = async (discordUserId: string) => {
+  const { data: identities, error: identityErr } = await supabase
+    .schema("auth")
+    .from("identities")
+    .select("user_id")
+    .eq("provider", "discord")
+    .eq("provider_id", discordUserId)
+    .limit(1);
+
+  if (identityErr) {
+    console.error("Failed to query auth.identities", identityErr);
+  }
+
+  const authUserId = identities?.[0]?.user_id;
+  if (authUserId) {
+    const { data: pilotByUserId, error: pilotByUserIdErr } = await supabase
+      .from("pilots")
+      .select("id,pid,full_name")
+      .eq("user_id", authUserId)
+      .maybeSingle();
+
+    if (!pilotByUserIdErr && pilotByUserId?.id) {
+      return pilotByUserId;
+    }
+  }
+
+  const { data: pilotByLegacyMap, error: legacyErr } = await supabase
+    .from("pilots")
+    .select("id,pid,full_name")
+    .eq("discord_user_id", discordUserId)
+    .maybeSingle();
+
+  if (legacyErr) {
+    console.error("Failed legacy pilot lookup via discord_user_id", legacyErr);
+  }
+
+  return pilotByLegacyMap;
 };
 
 serve(async (req) => {
@@ -61,12 +103,10 @@ serve(async (req) => {
 
   const body = JSON.parse(rawBody);
 
-  // Discord ping validation
   if (body.type === 1) {
     return Response.json({ type: 1 });
   }
 
-  // Autocomplete interaction
   if (body.type === 4) {
     const focused = body.data?.options?.find((o: any) => o.focused);
     if (!focused) return Response.json({ type: 8, data: { choices: [] } });
@@ -93,7 +133,6 @@ serve(async (req) => {
     return Response.json({ type: 8, data: { choices: [] } });
   }
 
-  // Slash command interaction
   if (body.type === 2 && body.data?.name === "pirep") {
     const options = parseOptions(body.data?.options || []);
 
@@ -102,17 +141,14 @@ serve(async (req) => {
       return Response.json({ type: 4, data: { content: "Could not identify your Discord account.", flags: 64 } });
     }
 
-    const { data: pilot, error: pilotErr } = await supabase
-      .from("pilots")
-      .select("id,pid,full_name")
-      .eq("discord_user_id", discordUserId)
-      .maybeSingle();
+    const pilot = await resolvePilotByDiscordUser(discordUserId);
 
-    if (pilotErr || !pilot?.id) {
+    if (!pilot?.id) {
       return Response.json({
         type: 4,
         data: {
-          content: "Your Discord account is not linked to a pilot profile. Ask admin to set `pilots.discord_user_id` to your Discord user id.",
+          content:
+            "No pilot profile is linked to your Discord sign-in yet. Sign in to the VA site with Discord first (or ask admin to set pilots.discord_user_id as fallback).",
           flags: 64,
         },
       });
