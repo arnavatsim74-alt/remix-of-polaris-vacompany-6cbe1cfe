@@ -29,6 +29,7 @@ export default function AdminApplications() {
       const { data } = await supabase
         .from("pilot_applications")
         .select("*")
+        .neq("status", "approved")
         .order("created_at", { ascending: false });
       return data || [];
     },
@@ -158,6 +159,7 @@ export default function AdminApplications() {
   });
 
   const pendingCount = applications?.filter((a) => a.status === "pending").length || 0;
+  const rejectedCount = applications?.filter((a) => a.status === "rejected").length || 0;
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, string> = {
@@ -185,10 +187,15 @@ export default function AdminApplications() {
         <div>
           <h1 className="text-2xl font-bold">Pilot Applications</h1>
           <p className="text-muted-foreground">
-            Review and approve new pilot applications
+            Review pending applications and rejected history (approved applications are hidden)
             {pendingCount > 0 && (
               <Badge className="ml-2" variant="secondary">
                 {pendingCount} pending
+              </Badge>
+            )}
+            {rejectedCount > 0 && (
+              <Badge className="ml-2" variant="outline">
+                {rejectedCount} rejected
               </Badge>
             )}
           </p>
