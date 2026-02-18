@@ -1,6 +1,7 @@
 import { useLocation, Link } from "react-router-dom";
 import {
   LayoutDashboard, FileText, History, Route, Trophy, Calendar, Info, Shield, Users, Star, Plane, Award, Zap, Settings, AlertTriangle, Target, Megaphone, CreditCard, Link as LinkIcon, Globe, MessageCircle, ExternalLink, BookOpen, HelpCircle, MapPin, Activity,
+  UserCog,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -26,10 +27,11 @@ const pilotNavItems = [
   { title: "Leaderboard", url: "/leaderboard", icon: Trophy },
   { title: "Events", url: "/events", icon: Calendar },
   { title: "Details", url: "/details", icon: Info },
-  { title: "AFLV Bonus", url: "/aflv-bonus", icon: CreditCard },
+  { title: "Safar Miles", url: "/frequentflyer", icon: CreditCard },
   { title: "Tracker", url: "/tracker", icon: MapPin },
   { title: "Academy", url: "/academy", icon: BookOpen },
   { title: "Activity", url: "/activity", icon: Activity },
+  { title: "Profile Settings", url: "/profile", icon: UserCog },
 ];
 
 const adminNavItems = [
@@ -104,11 +106,11 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <div className={cn("flex items-center gap-3 px-3 py-2", isCollapsed && "justify-center")}>
-          <img src={logoSrc} alt="Aeroflot VA" className={cn("w-auto object-contain", isCollapsed ? "h-8" : "h-10")} />
+          <img src={logoSrc} alt="Royal Air Maroc Virtual" className={cn("w-auto object-contain", isCollapsed ? "h-8" : "h-10")} />
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="scrollbar-thin">
+      <SidebarContent className="scrollbar-thin pb-2">
         <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] uppercase tracking-wider">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -181,7 +183,7 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border">
+      <SidebarFooter className="mt-auto border-t border-sidebar-border">
         {pilot && !isCollapsed && (
           <div className="px-3 py-2">
             <div className="flex items-center gap-3">

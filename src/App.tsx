@@ -19,7 +19,7 @@ import Leaderboard from "@/pages/Leaderboard";
 import Events from "@/pages/Events";
 import Details from "@/pages/Details";
 import Challenges from "@/pages/Challenges";
-import AflvBonus from "@/pages/AflvBonus";
+import SafarMilesPage from "@/pages/AflvBonus";
 import Tracker from "@/pages/Tracker";
 import AdminPireps from "@/pages/admin/AdminPireps";
 import AdminRoutes from "@/pages/admin/AdminRoutes";
@@ -42,6 +42,7 @@ import Academy from "@/pages/Academy";
 import AcademyCourse from "@/pages/AcademyCourse";
 import AcademyExam from "@/pages/AcademyExam";
 import ActivityPage from "@/pages/Activity";
+import ProfileSettings from "@/pages/ProfileSettings";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -67,12 +68,13 @@ const App = () => (
                 <Route path="events" element={<Events />} />
                 <Route path="details" element={<Details />} />
                 <Route path="challenges" element={<Challenges />} />
-                <Route path="aflv-bonus" element={<AflvBonus />} />
+                <Route path="frequentflyer" element={<SafarMilesPage />} />
                 <Route path="tracker" element={<Tracker />} />
                 <Route path="academy" element={<Academy />} />
                 <Route path="academy/course/:courseId" element={<AcademyCourse />} />
                 <Route path="academy/exam/:examId" element={<AcademyExam />} />
                 <Route path="activity" element={<ActivityPage />} />
+                <Route path="profile" element={<ProfileSettings />} />
                 <Route path="admin/pireps" element={<AdminPireps />} />
                 <Route path="admin/routes" element={<AdminRoutes />} />
                 <Route path="admin/rotw" element={<AdminROTW />} />

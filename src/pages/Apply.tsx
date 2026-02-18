@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,9 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Loader2, ArrowLeft, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { DiscordIcon } from "@/components/icons/DiscordIcon";
 import aeroflotLogo from "@/assets/aeroflot-logo.png";
+import { PolarisFooter } from "@/components/PolarisFooter";
 
 const applicationSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
@@ -29,8 +31,9 @@ export default function ApplyPage() {
   
   const [isLoading, setIsLoading] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState<ApplicationStatus>("idle");
-  const navigate = useNavigate();
-  const { user, signUp } = useAuth();
+  const [isAutoSubmittingDiscord, setIsAutoSubmittingDiscord] = useState(false);
+  const discordAutoSubmitRan = useRef(false);
+  const { user, signUp, signInWithDiscord } = useAuth();
 
   // Check if user already has an application
   useEffect(() => {
@@ -114,6 +117,86 @@ export default function ApplyPage() {
     }
   };
 
+
+  const handleDiscordRegister = async () => {
+    setIsLoading(true);
+
+    try {
+      const { error } = await signInWithDiscord("/apply", "register");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("Redirecting to Discord...");
+    } catch {
+      toast.error("Could not start Discord registration");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  useEffect(() => {
+    const autoSubmitDiscordApplication = async () => {
+      if (!user || discordAutoSubmitRan.current) return;
+
+      const hasDiscordIdentity = user.identities?.some((identity) => identity.provider === "discord");
+      if (!hasDiscordIdentity) return;
+
+      discordAutoSubmitRan.current = true;
+      setIsAutoSubmittingDiscord(true);
+
+      try {
+        const { data: existingApplication } = await supabase
+          .from("pilot_applications")
+          .select("status")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (existingApplication?.status) {
+          setApplicationStatus(existingApplication.status as ApplicationStatus);
+          return;
+        }
+
+        const metadata = user.user_metadata || {};
+        const fullName =
+          metadata.full_name ||
+          metadata.name ||
+          metadata.global_name ||
+          metadata.preferred_username ||
+          user.email?.split("@")[0] ||
+          "Discord Pilot";
+
+        const { error } = await supabase.from("pilot_applications").insert({
+          user_id: user.id,
+          email: user.email || "",
+          full_name: fullName,
+          vatsim_id: null,
+          ivao_id: null,
+          experience_level: "N/A",
+          preferred_simulator: "N/A",
+          reason_for_joining: "Signed up with Discord OAuth",
+        });
+
+        if (error) {
+          toast.error("Discord sign up succeeded, but creating your application failed. Please fill the form manually.");
+          console.error("Discord application insert error:", error);
+          return;
+        }
+
+        setApplicationStatus("pending");
+        toast.success("Discord account connected. Application submitted for admin review.");
+      } catch (error) {
+        console.error("Discord auto application error:", error);
+      } finally {
+        setIsAutoSubmittingDiscord(false);
+      }
+    };
+
+    autoSubmitDiscordApplication();
+  }, [user]);
+
   if (applicationStatus === "pending") {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
@@ -179,15 +262,18 @@ export default function ApplyPage() {
           <Card className="w-full max-w-2xl">
           <CardHeader className="text-center">
             <div className="mx-auto mb-4">
-              <img src={aeroflotLogo} alt="Aeroflot VA" className="h-12 w-auto object-contain" />
+              <img src={aeroflotLogo} alt="Royal Air Maroc Virtual" className="h-12 w-auto object-contain" />
             </div>
-            <CardTitle className="text-2xl">Join Aeroflot Virtual</CardTitle>
+            <CardTitle className="text-2xl">Join Royal Air Maroc Virtual</CardTitle>
             <CardDescription>
               Complete this form to apply for a pilot position with our virtual airline on Infinite Flight
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {isAutoSubmittingDiscord && (
+                <p className="text-sm text-muted-foreground">Finishing Discord registration and creating your application...</p>
+              )}
               {/* Personal Information */}
               <div className="space-y-4">
                 <h3 className="text-sm font-medium text-muted-foreground">Personal Information</h3>
@@ -256,14 +342,31 @@ export default function ApplyPage() {
               </div>
 
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || isAutoSubmittingDiscord}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Submit Application
               </Button>
+
+              <div className="space-y-3">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or</span>
+                  </div>
+                </div>
+
+                <Button type="button" variant="outline" className="w-full" disabled={isLoading || isAutoSubmittingDiscord} onClick={handleDiscordRegister}>
+                  <DiscordIcon className="mr-2 h-4 w-4" />
+                  Register with Discord
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
       </div>
+      <PolarisFooter />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Shield, Search, Check, X, Pause, FileText, Plus, Trash2, Briefcase } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { sendNotification } from "@/lib/notifications";
 
 export default function AdminPireps() {
   const { isAdmin } = useAuth();
@@ -128,6 +129,18 @@ export default function AdminPireps() {
         .eq("id", pirepId);
 
       if (error) throw error;
+
+      const pirep = pireps?.find((p: any) => p.id === pirepId);
+      if (pirep?.pilot_id && ["approved", "denied", "on_hold"].includes(status)) {
+        await sendNotification({
+          recipientPilotId: pirep.pilot_id,
+          title: `PIREP ${status.replace("_", " ")}`,
+          message: `Your PIREP ${pirep.flight_number} ${pirep.dep_icao}-${pirep.arr_icao} was ${status.replace("_", " ")}.`,
+          type: "pirep_status",
+          relatedEntity: "pirep",
+          relatedId: pirepId,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-pireps"] });

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-const DEFAULT_TRACKER_URL = "https://aflv-tracker.lovable.app/";
+const DEFAULT_TRACKER_URL = "https://ramva-tracker.lovable.app/";
 
 export default function Tracker() {
   const { data: trackerUrl } = useQuery({
@@ -21,7 +21,7 @@ export default function Tracker() {
       <iframe
         src={trackerUrl || DEFAULT_TRACKER_URL}
         className="w-full h-full border-0"
-        title="AFLV Tracker"
+        title="RAMVA Tracker"
         allow="fullscreen"
       />
     </div>

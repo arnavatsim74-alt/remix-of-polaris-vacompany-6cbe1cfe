@@ -43,34 +43,9 @@ export default function Events() {
     mutationFn: async (eventId: string) => {
       if (!pilot?.id) throw new Error("Pilot not found");
 
-      // Get event details for gate assignment
-      const { data: event } = await supabase
-        .from("events")
-        .select("available_dep_gates, available_arr_gates")
-        .eq("id", eventId)
-        .single();
-
-      // Get existing registrations to find used gates
-      const { data: existingRegs } = await supabase
-        .from("event_registrations")
-        .select("assigned_dep_gate, assigned_arr_gate")
-        .eq("event_id", eventId);
-
-      const usedDepGates = existingRegs?.map((r) => r.assigned_dep_gate).filter(Boolean) || [];
-      const usedArrGates = existingRegs?.map((r) => r.assigned_arr_gate).filter(Boolean) || [];
-
-      const availableDepGates = (event?.available_dep_gates || []).filter(
-        (g: string) => !usedDepGates.includes(g)
-      );
-      const availableArrGates = (event?.available_arr_gates || []).filter(
-        (g: string) => !usedArrGates.includes(g)
-      );
-
-      const { error } = await supabase.from("event_registrations").insert({
-        event_id: eventId,
-        pilot_id: pilot.id,
-        assigned_dep_gate: availableDepGates[0] || null,
-        assigned_arr_gate: availableArrGates[0] || null,
+      const { error } = await supabase.rpc("register_for_event", {
+        p_event_id: eventId,
+        p_pilot_id: pilot.id,
       });
 
       if (error) throw error;
@@ -81,7 +56,7 @@ export default function Events() {
     },
     onError: (error) => {
       console.error(error);
-      toast.error("Failed to register for event");
+      toast.error((error as any)?.message || "Failed to register for event");
     },
   });
 
