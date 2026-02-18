@@ -28,32 +28,7 @@ const toUtcHm = (iso: string) => {
   return `${hh}:${mm} UTC`;
 };
 
-const createDiscordThread = async (botToken: string, eventName: string, startTimeIso: string) => {
-  const threadName = `${eventName} • ${toUtcHm(startTimeIso)}`.slice(0, 100);
-
-  const response = await fetch(`${DISCORD_API_BASE}/channels/${EVENT_REMINDER_CHANNEL_ID}/threads`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bot ${botToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name: threadName,
-      auto_archive_duration: 1440,
-      type: 11,
-      reason: "Auto-created 30-minute event reminder thread",
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Discord thread creation failed (${response.status}): ${text}`);
-  }
-
-  return await response.json();
-};
-
-const postDiscordMessage = async (botToken: string, channelId: string, content: string) => {
+const createDiscordMessage = async (botToken: string, channelId: string, content: string) => {
   const response = await fetch(`${DISCORD_API_BASE}/channels/${channelId}/messages`, {
     method: "POST",
     headers: {
@@ -69,6 +44,63 @@ const postDiscordMessage = async (botToken: string, channelId: string, content: 
   }
 
   return await response.json();
+};
+
+const startThreadFromMessage = async (botToken: string, channelId: string, messageId: string, name: string) => {
+  const response = await fetch(`${DISCORD_API_BASE}/channels/${channelId}/messages/${messageId}/threads`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bot ${botToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name,
+      auto_archive_duration: 1440,
+      rate_limit_per_user: 0,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Discord thread-from-message failed (${response.status}): ${text}`);
+  }
+
+  return await response.json();
+};
+
+const createDiscordThread = async (botToken: string, eventName: string, startTimeIso: string) => {
+  const threadName = `${eventName} • ${toUtcHm(startTimeIso)}`.slice(0, 100);
+
+  // Try "thread without message" first (forum/media channel support).
+  const response = await fetch(`${DISCORD_API_BASE}/channels/${EVENT_REMINDER_CHANNEL_ID}/threads`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bot ${botToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: threadName,
+      auto_archive_duration: 1440,
+      type: 11,
+      reason: "Auto-created 30-minute event reminder thread",
+    }),
+  });
+
+  if (response.ok) {
+    return await response.json();
+  }
+
+  // Fallback for text channels: create a starter message then start thread from that message.
+  const fallbackReason = await response.text();
+  console.warn("Thread create without message failed; trying message-based thread:", fallbackReason);
+
+  const starterMessage = await createDiscordMessage(
+    botToken,
+    EVENT_REMINDER_CHANNEL_ID,
+    `⏰ Event reminder thread created for **${eventName || "Event"}** (${toUtcHm(startTimeIso)}).`,
+  );
+
+  return await startThreadFromMessage(botToken, EVENT_REMINDER_CHANNEL_ID, starterMessage.id, threadName);
 };
 
 serve(async (req) => {
@@ -150,26 +182,58 @@ serve(async (req) => {
           .map((r) => r.pilot?.user_id)
           .filter((id): id is string => Boolean(id));
 
-        let identityMap = new Map<string, string>();
+        const identityIdMap = new Map<string, string>();
+        const identityUsernameMap = new Map<string, string>();
         if (userIds.length) {
           const { data: identities, error: identitiesError } = await supabase
             .schema("auth")
             .from("identities")
-            .select("user_id,provider_id")
+            .select("user_id,provider_id,identity_data")
             .eq("provider", "discord")
             .in("user_id", userIds);
 
           if (!identitiesError && identities?.length) {
-            identityMap = new Map(identities.map((it: any) => [it.user_id, it.provider_id]));
+            for (const it of identities as any[]) {
+              if (it.user_id && it.provider_id) identityIdMap.set(it.user_id, it.provider_id);
+              const identityData = (it.identity_data || {}) as Record<string, any>;
+              const discordUsername = String(identityData.global_name || identityData.username || "").trim();
+              if (it.user_id && discordUsername) identityUsernameMap.set(it.user_id, discordUsername);
+            }
+          }
+        }
+
+        const authDisplayNameMap = new Map<string, string>();
+        if (userIds.length) {
+          const { data: authUsers, error: authUsersError } = await supabase
+            .schema("auth")
+            .from("users")
+            .select("id,email,raw_user_meta_data")
+            .in("id", userIds);
+
+          if (!authUsersError && authUsers?.length) {
+            for (const u of authUsers as any[]) {
+              const meta = (u.raw_user_meta_data || {}) as Record<string, any>;
+              const display = String(meta.full_name || meta.name || meta.global_name || meta.preferred_username || u.email || "").trim();
+              if (u.id && display) authDisplayNameMap.set(u.id, display);
+            }
           }
         }
 
         const lines = regRows.length
           ? regRows.map((r) => {
+              const userId = r.pilot?.user_id || "";
+              const discordId = r.discord_user_id || r.pilot?.discord_user_id || (userId ? identityIdMap.get(userId) : undefined);
+              const discordUsername = userId ? identityUsernameMap.get(userId) : undefined;
+              const authDisplayName = userId ? authDisplayNameMap.get(userId) : undefined;
               const pilotName = r.pilot?.full_name || r.pilot?.pid || "Pilot";
-              const discordId = r.discord_user_id || r.pilot?.discord_user_id || (r.pilot?.user_id ? identityMap.get(r.pilot.user_id) : undefined);
-              const mention = discordId ? `<@${discordId}>` : pilotName;
-              return `• ${mention} — DEP Gate: ${r.assigned_dep_gate || "TBD"} | ARR Gate: ${r.assigned_arr_gate || "TBD"}`;
+
+              const display = discordId
+                ? `<@${discordId}>`
+                : discordUsername
+                  ? `@${discordUsername}`
+                  : authDisplayName || pilotName;
+
+              return `• ${display} — DEP Gate: ${r.assigned_dep_gate || "TBD"} | ARR Gate: ${r.assigned_arr_gate || "TBD"}`;
             })
           : ["No pilots registered yet."];
 
@@ -183,7 +247,7 @@ serve(async (req) => {
           "Registered pilots and assigned gates:",
         ].join("\n");
 
-        await postDiscordMessage(discordBotToken, thread.id, `${header}\n${lines.join("\n")}`.slice(0, 1900));
+        await createDiscordMessage(discordBotToken, thread.id, `${header}\n${lines.join("\n")}`.slice(0, 1900));
 
         const { error: saveError } = await supabase
           .from("event_discord_reminders")
