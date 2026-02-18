@@ -213,7 +213,7 @@ export default function AuthPage() {
               </form>
 
               <div className="mt-6 text-center text-sm">
-                <span className="text-muted-foreground">New to Aeroflot? </span>
+                <span className="text-muted-foreground">New? </span>
                 <Link to="/apply" className="text-primary hover:underline font-medium">
                   Apply to join
                 </Link>
