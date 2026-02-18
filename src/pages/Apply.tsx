@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +35,11 @@ export default function ApplyPage() {
   const discordAutoSubmitRan = useRef(false);
   const { user, signUp, signInWithDiscord } = useAuth();
   const [searchParams] = useSearchParams();
+  const isDiscordRegisterFlow = useMemo(() => {
+    if (searchParams.get("oauth") === "register") return true;
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem("discord_oauth_mode") === "register";
+  }, [searchParams]);
 
   // Check if user already has an application
   useEffect(() => {
@@ -53,7 +58,7 @@ export default function ApplyPage() {
     };
 
     checkExistingApplication();
-  }, [user, searchParams]);
+  }, [user, isDiscordRegisterFlow]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,6 +128,9 @@ export default function ApplyPage() {
     setIsLoading(true);
 
     try {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem("discord_oauth_mode", "register");
+      }
       const { error } = await signInWithDiscord("/apply", "register");
       if (error) {
         toast.error(error.message);
@@ -142,25 +150,40 @@ export default function ApplyPage() {
     const autoSubmitDiscordApplication = async () => {
       if (!user || discordAutoSubmitRan.current) return;
 
-      const isDiscordRegisterFlow = searchParams.get("oauth") === "register";
-
       const hasDiscordIdentity = user.identities?.some((identity) => identity.provider === "discord")
         || user.app_metadata?.provider === "discord"
         || (Array.isArray(user.app_metadata?.providers) && user.app_metadata.providers.includes("discord"));
       if (!hasDiscordIdentity && !isDiscordRegisterFlow) return;
 
-      discordAutoSubmitRan.current = true;
       setIsAutoSubmittingDiscord(true);
 
       try {
-        const { data: existingApplication } = await supabase
-          .from("pilot_applications")
-          .select("status")
-          .eq("user_id", user.id)
-          .maybeSingle();
+        const [{ data: existingApplication }, { data: existingPilot }] = await Promise.all([
+          supabase
+            .from("pilot_applications")
+            .select("status")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("pilots")
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+        ]);
+
+        if (existingPilot?.id) {
+          setApplicationStatus("approved");
+          if (typeof window !== "undefined") {
+            window.sessionStorage.removeItem("discord_oauth_mode");
+          }
+          return;
+        }
 
         if (existingApplication?.status) {
           setApplicationStatus(existingApplication.status as ApplicationStatus);
+          if (typeof window !== "undefined") {
+            window.sessionStorage.removeItem("discord_oauth_mode");
+          }
           return;
         }
 
@@ -173,16 +196,20 @@ export default function ApplyPage() {
           user.email?.split("@")[0] ||
           "Discord Pilot";
 
-        const { error } = await supabase.from("pilot_applications").insert({
+        const emailFromMetadata = typeof metadata.email === "string" ? metadata.email : null;
+        const fallbackEmail = emailFromMetadata || user.email || `discord-${user.id}@users.noreply.local`;
+
+        const { error } = await supabase.from("pilot_applications").upsert({
           user_id: user.id,
-          email: user.email || "",
+          email: fallbackEmail,
           full_name: fullName,
           vatsim_id: null,
           ivao_id: null,
           experience_level: "N/A",
           preferred_simulator: "N/A",
           reason_for_joining: "Signed up with Discord OAuth",
-        });
+          status: "pending",
+        }, { onConflict: "user_id" });
 
         if (error) {
           toast.error("Discord sign up succeeded, but creating your application failed. Please fill the form manually.");
@@ -191,16 +218,20 @@ export default function ApplyPage() {
         }
 
         setApplicationStatus("pending");
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem("discord_oauth_mode");
+        }
         toast.success("Discord account connected. Application submitted for admin review.");
       } catch (error) {
         console.error("Discord auto application error:", error);
       } finally {
+        discordAutoSubmitRan.current = true;
         setIsAutoSubmittingDiscord(false);
       }
     };
 
     autoSubmitDiscordApplication();
-  }, [user, searchParams]);
+  }, [user, isDiscordRegisterFlow]);
 
   if (applicationStatus === "pending") {
     return (

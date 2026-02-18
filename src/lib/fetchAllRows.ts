@@ -10,10 +10,11 @@ export async function fetchAllRows(
     filters?: (query: any) => any;
     orderColumn?: string;
     orderAscending?: boolean;
+    batchSize?: number;
   }
 ): Promise<any[]> {
   const allData: any[] = [];
-  const batchSize = 1000;
+  const batchSize = options?.batchSize ?? 200;
   let offset = 0;
   let hasMore = true;
 
@@ -28,8 +29,8 @@ export async function fetchAllRows(
 
     if (data && data.length > 0) {
       allData.push(...data);
-      offset += batchSize;
-      hasMore = data.length === batchSize;
+      offset += data.length;
+      hasMore = data.length > 0;
     } else {
       hasMore = false;
     }

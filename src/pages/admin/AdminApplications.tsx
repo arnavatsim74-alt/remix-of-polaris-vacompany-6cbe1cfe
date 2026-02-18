@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Check, X, Search, Users, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 export default function AdminApplications() {
   const { isAdmin } = useAuth();
@@ -25,14 +26,12 @@ export default function AdminApplications() {
 
   const { data: applications, isLoading } = useQuery({
     queryKey: ["admin-applications"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("pilot_applications")
-        .select("*")
-        .neq("status", "approved")
-        .order("created_at", { ascending: false });
-      return data || [];
-    },
+    queryFn: async () => fetchAllRows("pilot_applications", {
+      filters: (query) => query.neq("status", "approved"),
+      orderColumn: "created_at",
+      orderAscending: false,
+      batchSize: 100,
+    }),
   });
 
   const { data: nextPid } = useQuery({
