@@ -27,8 +27,16 @@ type EventForm = {
   arr_icao: string;
   aircraft_icao: string;
   aircraft_name: string;
+  aircraft_id: string;
   available_dep_gates: string;
   available_arr_gates: string;
+};
+
+type AircraftRow = {
+  id: string;
+  icao_code: string;
+  name: string;
+  livery: string | null;
 };
 
 const formatZuluDateTime = (iso: string) => {
@@ -51,9 +59,130 @@ const emptyEventForm: EventForm = {
   arr_icao: "",
   aircraft_icao: "",
   aircraft_name: "",
+  aircraft_id: "",
   available_dep_gates: "",
   available_arr_gates: "",
 };
+
+function EventFormFields({
+  value,
+  setValue,
+  mode,
+  aircraft,
+  isFetchingGates,
+  onFetchGates,
+  onBannerChange,
+}: {
+  value: EventForm;
+  setValue: (next: EventForm) => void;
+  mode: "add" | "edit";
+  aircraft: AircraftRow[];
+  isFetchingGates: boolean;
+  onFetchGates: (icao: string, type: "dep" | "arr", mode: "add" | "edit") => void;
+  onBannerChange: (file: File | null) => void;
+}) {
+  const formatAircraftLabel = (ac: AircraftRow) => `${ac.name} (${ac.icao_code})${ac.livery ? ` - ${ac.livery}` : ""}`;
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Event Name *</Label>
+        <Input value={value.name} onChange={(e) => setValue({ ...value, name: e.target.value })} placeholder="Weekly Group Flight" />
+      </div>
+      <div className="space-y-2">
+        <Label>Description</Label>
+        <Textarea value={value.description} onChange={(e) => setValue({ ...value, description: e.target.value })} placeholder="Join us for a scenic route..." rows={3} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Server *</Label>
+          <Select value={value.server} onValueChange={(v) => setValue({ ...value, server: v })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Expert">Expert</SelectItem>
+              <SelectItem value="Training">Training</SelectItem>
+              <SelectItem value="Casual">Casual</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Aircraft</Label>
+          <Select
+            value={value.aircraft_id || "none"}
+            onValueChange={(v) => {
+              if (v === "none") {
+                setValue({ ...value, aircraft_id: "", aircraft_icao: "", aircraft_name: "" });
+                return;
+              }
+              const selectedAircraft = aircraft.find((ac) => ac.id === v);
+              if (!selectedAircraft) return;
+              const displayName = `${selectedAircraft.name}${selectedAircraft.livery ? ` - ${selectedAircraft.livery}` : ""}`;
+              setValue({ ...value, aircraft_id: selectedAircraft.id, aircraft_icao: selectedAircraft.icao_code, aircraft_name: displayName });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Any aircraft" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Any aircraft</SelectItem>
+              {aircraft.map((ac) => (
+                <SelectItem key={ac.id} value={ac.id}>{formatAircraftLabel(ac)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Start Time *</Label>
+          <Input type="datetime-local" value={value.start_time} onChange={(e) => setValue({ ...value, start_time: e.target.value })} />
+        </div>
+        <div className="space-y-2">
+          <Label>End Time *</Label>
+          <Input type="datetime-local" value={value.end_time} onChange={(e) => setValue({ ...value, end_time: e.target.value })} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Departure ICAO *</Label>
+          <Input value={value.dep_icao} onChange={(e) => setValue({ ...value, dep_icao: e.target.value.toUpperCase() })} placeholder="KJFK" maxLength={4} />
+        </div>
+        <div className="space-y-2">
+          <Label>Arrival ICAO *</Label>
+          <Input value={value.arr_icao} onChange={(e) => setValue({ ...value, arr_icao: e.target.value.toUpperCase() })} placeholder="EGLL" maxLength={4} />
+        </div>
+      </div>
+
+      {mode === "add" && (
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Banner Image (optional)</Label>
+          <Input type="file" accept="image/*" onChange={(e) => onBannerChange(e.target.files?.[0] || null)} />
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Available Departure Gates</Label>
+            <Button type="button" size="sm" variant="outline" onClick={() => onFetchGates(value.dep_icao, "dep", mode)} disabled={isFetchingGates || !value.dep_icao}>
+              <RefreshCw className={`h-3 w-3 mr-1 ${isFetchingGates ? "animate-spin" : ""}`} /> Auto-fetch
+            </Button>
+          </div>
+          <Input value={value.available_dep_gates} onChange={(e) => setValue({ ...value, available_dep_gates: e.target.value })} placeholder="A1, A2, A3" />
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Available Arrival Gates</Label>
+            <Button type="button" size="sm" variant="outline" onClick={() => onFetchGates(value.arr_icao, "arr", mode)} disabled={isFetchingGates || !value.arr_icao}>
+              <RefreshCw className={`h-3 w-3 mr-1 ${isFetchingGates ? "animate-spin" : ""}`} /> Auto-fetch
+            </Button>
+          </div>
+          <Input value={value.available_arr_gates} onChange={(e) => setValue({ ...value, available_arr_gates: e.target.value })} placeholder="T1, T2, T3" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminEvents() {
   const { isAdmin } = useAuth();
@@ -83,7 +212,7 @@ export default function AdminEvents() {
     },
   });
 
-  const { data: aircraft } = useQuery({
+  const { data: aircraft = [] } = useQuery({
     queryKey: ["aircraft-list"],
     queryFn: async () => {
       const { data } = await supabase.from("aircraft").select("*").order("name");
@@ -151,7 +280,7 @@ export default function AdminEvents() {
         bannerUrl = data.publicUrl;
       }
 
-      const selectedAc = aircraft?.find((ac) => ac.icao_code === event.aircraft_icao && (event.aircraft_name ? (event.aircraft_name.includes(ac.name)) : true));
+      const selectedAc = aircraft.find((ac) => ac.id === event.aircraft_id);
 
       const payload = {
         name: event.name,
@@ -190,7 +319,7 @@ export default function AdminEvents() {
     mutationFn: async (event: EventForm) => {
       if (!editingEventId) throw new Error("No event selected");
 
-      const selectedAc = aircraft?.find((ac) => ac.icao_code === event.aircraft_icao && (event.aircraft_name ? (event.aircraft_name.includes(ac.name)) : true));
+      const selectedAc = aircraft.find((ac) => ac.id === event.aircraft_id);
 
       const payload = {
         name: event.name,
@@ -247,6 +376,7 @@ export default function AdminEvents() {
       arr_icao: event.arr_icao || "",
       aircraft_icao: event.aircraft_icao || "",
       aircraft_name: event.aircraft_name || "",
+      aircraft_id: (aircraft.find((ac) => ac.icao_code === event.aircraft_icao && (`${ac.name}${ac.livery ? ` - ${ac.livery}` : ""}` === (event.aircraft_name || "")))?.id) || "",
       available_dep_gates: Array.isArray(event.available_dep_gates) ? event.available_dep_gates.join(", ") : "",
       available_arr_gates: Array.isArray(event.available_arr_gates) ? event.available_arr_gates.join(", ") : "",
     });
@@ -254,114 +384,6 @@ export default function AdminEvents() {
   };
 
   if (!isAdmin) return <Navigate to="/" replace />;
-
-  const EventFormFields = ({
-    value,
-    setValue,
-    mode,
-  }: {
-    value: EventForm;
-    setValue: (next: EventForm) => void;
-    mode: "add" | "edit";
-  }) => (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>Event Name *</Label>
-        <Input value={value.name} onChange={(e) => setValue({ ...value, name: e.target.value })} placeholder="Weekly Group Flight" />
-      </div>
-      <div className="space-y-2">
-        <Label>Description</Label>
-        <Textarea value={value.description} onChange={(e) => setValue({ ...value, description: e.target.value })} placeholder="Join us for a scenic route..." rows={3} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Server *</Label>
-          <Select value={value.server} onValueChange={(v) => setValue({ ...value, server: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Expert">Expert</SelectItem>
-              <SelectItem value="Training">Training</SelectItem>
-              <SelectItem value="Casual">Casual</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Aircraft</Label>
-          <Select
-            value={(aircraft?.find((ac) => ac.icao_code === value.aircraft_icao && (value.aircraft_name ? value.aircraft_name.includes(ac.name) : true))?.id) || "none"}
-            onValueChange={(v) => {
-              if (v === "none") {
-                setValue({ ...value, aircraft_icao: "", aircraft_name: "" });
-                return;
-              }
-              const selectedAircraft = aircraft?.find((ac) => ac.id === v);
-              if (!selectedAircraft) return;
-              const displayName = `${selectedAircraft.name}${selectedAircraft.livery ? ` - ${selectedAircraft.livery}` : ""}`;
-              setValue({ ...value, aircraft_icao: selectedAircraft.icao_code, aircraft_name: displayName });
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Any aircraft" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Any aircraft</SelectItem>
-              {aircraft?.map((ac) => (
-                <SelectItem key={ac.id} value={ac.id}>{ac.name} ({ac.icao_code}){ac.livery ? ` - ${ac.livery}` : ""}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Start Time *</Label>
-          <Input type="datetime-local" value={value.start_time} onChange={(e) => setValue({ ...value, start_time: e.target.value })} />
-        </div>
-        <div className="space-y-2">
-          <Label>End Time *</Label>
-          <Input type="datetime-local" value={value.end_time} onChange={(e) => setValue({ ...value, end_time: e.target.value })} />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Departure ICAO *</Label>
-          <Input value={value.dep_icao} onChange={(e) => setValue({ ...value, dep_icao: e.target.value.toUpperCase() })} placeholder="KJFK" maxLength={4} />
-        </div>
-        <div className="space-y-2">
-          <Label>Arrival ICAO *</Label>
-          <Input value={value.arr_icao} onChange={(e) => setValue({ ...value, arr_icao: e.target.value.toUpperCase() })} placeholder="EGLL" maxLength={4} />
-        </div>
-      </div>
-
-      {mode === "add" && (
-        <div className="space-y-2">
-          <Label className="flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Banner Image (optional)</Label>
-          <Input type="file" accept="image/*" onChange={(e) => setBannerFile(e.target.files?.[0] || null)} />
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label>Available Departure Gates</Label>
-            <Button type="button" size="sm" variant="outline" onClick={() => fetchGatesFromIfatc(value.dep_icao, "dep", mode)} disabled={isFetchingGates || !value.dep_icao}>
-              <RefreshCw className={`h-3 w-3 mr-1 ${isFetchingGates ? "animate-spin" : ""}`} /> Auto-fetch
-            </Button>
-          </div>
-          <Input value={value.available_dep_gates} onChange={(e) => setValue({ ...value, available_dep_gates: e.target.value })} placeholder="A1, A2, A3" />
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label>Available Arrival Gates</Label>
-            <Button type="button" size="sm" variant="outline" onClick={() => fetchGatesFromIfatc(value.arr_icao, "arr", mode)} disabled={isFetchingGates || !value.arr_icao}>
-              <RefreshCw className={`h-3 w-3 mr-1 ${isFetchingGates ? "animate-spin" : ""}`} /> Auto-fetch
-            </Button>
-          </div>
-          <Input value={value.available_arr_gates} onChange={(e) => setValue({ ...value, available_arr_gates: e.target.value })} placeholder="T1, T2, T3" />
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-6">
@@ -388,7 +410,15 @@ export default function AdminEvents() {
               <DialogTitle>Create New Event</DialogTitle>
               <DialogDescription>Create a new community event</DialogDescription>
             </DialogHeader>
-            <EventFormFields value={newEvent} setValue={setNewEvent} mode="add" />
+            <EventFormFields
+              value={newEvent}
+              setValue={setNewEvent}
+              mode="add"
+              aircraft={aircraft as AircraftRow[]}
+              isFetchingGates={isFetchingGates}
+              onFetchGates={fetchGatesFromIfatc}
+              onBannerChange={setBannerFile}
+            />
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
               <Button onClick={() => addEventMutation.mutate(newEvent)} disabled={addEventMutation.isPending || isUploading}>
@@ -469,7 +499,15 @@ export default function AdminEvents() {
             <DialogTitle>Edit Event</DialogTitle>
             <DialogDescription>Update event details. A refreshed Discord embed will be sent.</DialogDescription>
           </DialogHeader>
-          <EventFormFields value={editEvent} setValue={setEditEvent} mode="edit" />
+          <EventFormFields
+            value={editEvent}
+            setValue={setEditEvent}
+            mode="edit"
+            aircraft={aircraft as AircraftRow[]}
+            isFetchingGates={isFetchingGates}
+            onFetchGates={fetchGatesFromIfatc}
+            onBannerChange={setBannerFile}
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => editEventMutation.mutate(editEvent)} disabled={editEventMutation.isPending}>
