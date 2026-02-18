@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,15 +20,20 @@ interface AircraftForm {
   name: string;
   type: string;
   livery: string;
-  min_hours: number;
+  min_rank: string;
   passenger_capacity: number | null;
   cargo_capacity_kg: number | null;
   range_nm: number | null;
   image_url: string;
 }
 
+
+const enumPilotRanks = ["cadet", "first_officer", "captain", "senior_captain", "commander"] as const;
+
+const formatRankLabel = (rank: string) => rank.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
 const emptyForm: AircraftForm = {
-  icao_code: "", name: "", type: "passenger", livery: "", min_hours: 0,
+  icao_code: "", name: "", type: "passenger", livery: "", min_rank: "cadet",
   passenger_capacity: null, cargo_capacity_kg: null, range_nm: null, image_url: "",
 };
 
@@ -57,6 +61,18 @@ export default function AdminAircraft() {
     },
   });
 
+
+
+  const rankOptions = (ranks && ranks.length > 0)
+    ? ranks
+        .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
+        .map((rank: any, index: number) => ({
+          name: enumPilotRanks[index] || null,
+          label: rank.label || formatRankLabel(rank.name || ""),
+        }))
+        .filter((rank: any) => !!rank.name)
+    : enumPilotRanks.map((name) => ({ name, label: formatRankLabel(name) }));
+
   const saveMutation = useMutation({
     mutationFn: async (data: AircraftForm & { id?: string }) => {
       const payload = {
@@ -64,18 +80,34 @@ export default function AdminAircraft() {
         name: data.name,
         type: data.type,
         livery: data.livery || null,
-        min_hours: data.min_hours,
+        min_rank: data.min_rank || "cadet",
         passenger_capacity: data.passenger_capacity,
         cargo_capacity_kg: data.cargo_capacity_kg,
         range_nm: data.range_nm,
         image_url: data.image_url || null,
+      } as any;
+
+      const run = async (p: any) => {
+        if (data.id) {
+          const { error } = await supabase.from("aircraft").update(p).eq("id", data.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("aircraft").insert(p);
+          if (error) throw error;
+        }
       };
-      if (data.id) {
-        const { error } = await supabase.from("aircraft").update(payload).eq("id", data.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("aircraft").insert(payload);
-        if (error) throw error;
+
+      try {
+        await run(payload);
+      } catch (error: any) {
+        // Fallback for environments where min_rank column migration has not been applied yet.
+        if (String(error?.message || "").includes("min_rank")) {
+          const fallbackPayload = { ...payload };
+          delete fallbackPayload.min_rank;
+          await run(fallbackPayload);
+          return;
+        }
+        throw error;
       }
     },
     onSuccess: () => {
@@ -84,7 +116,7 @@ export default function AdminAircraft() {
       toast.success(editingId ? "Aircraft updated" : "Aircraft added");
       closeDialog();
     },
-    onError: () => toast.error("Failed to save aircraft"),
+    onError: (error: any) => toast.error(error?.message || "Failed to save aircraft"),
   });
 
   const deleteMutation = useMutation({
@@ -107,7 +139,7 @@ export default function AdminAircraft() {
       name: ac.name,
       type: ac.type,
       livery: ac.livery || "",
-      min_hours: ac.min_hours || 0,
+      min_rank: (ac as any).min_rank || "cadet",
       passenger_capacity: ac.passenger_capacity,
       cargo_capacity_kg: ac.cargo_capacity_kg,
       range_nm: ac.range_nm,
@@ -178,8 +210,17 @@ export default function AdminAircraft() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Minimum Hours (Unlockable at)</Label>
-                <Input type="number" value={form.min_hours} onChange={(e) => setForm({ ...form, min_hours: parseInt(e.target.value) || 0 })} />
+                <Label>Minimum Rank Required</Label>
+                <Select value={rankOptions.some((r: any) => r.name === form.min_rank) ? form.min_rank : (rankOptions[0]?.name || "cadet")} onValueChange={(v) => setForm({ ...form, min_rank: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {rankOptions.map((rank: any) => (
+                      <SelectItem key={rank.name} value={rank.name}>
+                        {rank.label || formatRankLabel(rank.name)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
@@ -202,7 +243,14 @@ export default function AdminAircraft() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={closeDialog}>Cancel</Button>
-              <Button onClick={() => saveMutation.mutate({ ...form, id: editingId || undefined })} disabled={saveMutation.isPending}>
+              <Button onClick={() => {
+                if (!form.min_rank) {
+                  toast.error("Please select a minimum rank");
+                  return;
+                }
+                const safeRank = enumPilotRanks.includes(form.min_rank as any) ? form.min_rank : "cadet";
+                saveMutation.mutate({ ...form, min_rank: safeRank, id: editingId || undefined });
+              }} disabled={saveMutation.isPending}>
                 {editingId ? "Update" : "Create"}
               </Button>
             </DialogFooter>
@@ -236,7 +284,7 @@ export default function AdminAircraft() {
                     <th className="text-left py-3 px-2 font-medium">Code</th>
                     <th className="text-left py-3 px-2 font-medium">Livery</th>
                     <th className="text-left py-3 px-2 font-medium">Type</th>
-                    <th className="text-left py-3 px-2 font-medium">Min Hours</th>
+                    <th className="text-left py-3 px-2 font-medium">Min Rank</th>
                     <th className="text-left py-3 px-2 font-medium">PAX/Cargo</th>
                     <th className="text-left py-3 px-2 font-medium">Range</th>
                     <th className="text-right py-3 px-2 font-medium">Actions</th>
@@ -253,7 +301,7 @@ export default function AdminAircraft() {
                       <td className="py-3 px-2">
                         <Badge variant="secondary" className="capitalize">{ac.type}</Badge>
                       </td>
-                      <td className="py-3 px-2">{ac.min_hours || 0}h</td>
+                      <td className="py-3 px-2 capitalize">{formatRankLabel((ac as any).min_rank || "cadet")}</td>
                       <td className="py-3 px-2">
                         {ac.type === "cargo" ? (ac.cargo_capacity_kg ? `${ac.cargo_capacity_kg} kg` : "-") : (ac.passenger_capacity ? `${ac.passenger_capacity} pax` : "-")}
                       </td>
@@ -271,7 +319,7 @@ export default function AdminAircraft() {
                               name: ac.name,
                               type: ac.type,
                               livery: "",
-                              min_hours: ac.min_hours || 0,
+                              min_rank: (ac as any).min_rank || "cadet",
                               passenger_capacity: ac.passenger_capacity,
                               cargo_capacity_kg: ac.cargo_capacity_kg,
                               range_nm: ac.range_nm,
