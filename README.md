@@ -162,6 +162,32 @@ This registers these global slash commands:
 - `/rotw`
 - `/featured`
 
+### 4.1) Event reminder thread setup (T-30 minutes)
+
+A dedicated edge function can auto-create a thread 30 minutes before an event in channel `1427122161570807858` and post the first plain-text message with pilot mentions + assigned gates.
+
+Deploy:
+
+```bash
+supabase functions deploy discord-event-reminder
+```
+
+Required secrets:
+
+```bash
+supabase secrets set SUPABASE_URL=<your_project_url>
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<your_service_role_key>
+supabase secrets set DISCORD_BOT_TOKEN=<your_bot_token>
+```
+
+Schedule (recommended every 1-5 min):
+- Call `https://<project-ref>.supabase.co/functions/v1/discord-event-reminder` from your scheduler/cron.
+- The function deduplicates reminders via `event_discord_reminders`, so each event gets only one `t_minus_30m` thread.
+
+Discord user ID source (no manual entry needed):
+- On event participation, the system now stores Discord user ID automatically when available.
+- Priority used by reminder function: `event_registrations.discord_user_id` -> `pilots.discord_user_id` -> `auth.identities(provider=discord)`.
+
 `/pirep` options:
 - `flight_number` (string)
 - `dep_icao` (string)

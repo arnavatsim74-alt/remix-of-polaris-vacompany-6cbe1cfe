@@ -190,7 +190,7 @@ const pickGate = (available: string[] | null, used: Set<string>) => {
   return gate || null;
 };
 
-const joinEventWithFallback = async (eventId: string, pilotId: string) => {
+const joinEventWithFallback = async (eventId: string, pilotId: string, discordUserId?: string | null) => {
   const { data: existing } = await supabase
     .from("event_registrations")
     .select("assigned_dep_gate,assigned_arr_gate")
@@ -198,14 +198,34 @@ const joinEventWithFallback = async (eventId: string, pilotId: string) => {
     .eq("pilot_id", pilotId)
     .maybeSingle();
 
-  if (existing) return existing;
+  if (existing) {
+    if (discordUserId) {
+      await supabase
+        .from("event_registrations")
+        .update({ discord_user_id: discordUserId })
+        .eq("event_id", eventId)
+        .eq("pilot_id", pilotId)
+        .is("discord_user_id", null);
+    }
+    return existing;
+  }
 
   const { data: rpcData, error: rpcError } = await supabase.rpc("register_for_event", {
     p_event_id: eventId,
     p_pilot_id: pilotId,
   });
 
-  if (!rpcError) return rpcData;
+  if (!rpcError) {
+    if (discordUserId) {
+      await supabase
+        .from("event_registrations")
+        .update({ discord_user_id: discordUserId })
+        .eq("event_id", eventId)
+        .eq("pilot_id", pilotId)
+        .is("discord_user_id", null);
+    }
+    return rpcData;
+  }
 
   if (!String(rpcError.message || "").toLowerCase().includes("not allowed")) {
     throw rpcError;
@@ -240,6 +260,7 @@ const joinEventWithFallback = async (eventId: string, pilotId: string) => {
       assigned_dep_gate,
       assigned_arr_gate,
       registered_at: new Date().toISOString(),
+      discord_user_id: discordUserId || null,
     })
     .select("assigned_dep_gate,assigned_arr_gate")
     .maybeSingle();
@@ -490,7 +511,8 @@ const handleJoinEventButton = async (body: any, eventId: string) => {
   }
 
   try {
-    const data = await joinEventWithFallback(eventId, pilot.id);
+    const discordUserId = body.member?.user?.id || body.user?.id || null;
+    const data = await joinEventWithFallback(eventId, pilot.id, discordUserId);
 
     // user-only plain confirmation (not embed) per requirement
     return Response.json({

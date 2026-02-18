@@ -12,6 +12,7 @@ const EVENT_REMINDER_CHANNEL_ID = "1427122161570807858";
 type RegistrationRow = {
   assigned_dep_gate: string | null;
   assigned_arr_gate: string | null;
+  discord_user_id: string | null;
   pilot: {
     user_id: string | null;
     full_name: string | null;
@@ -138,7 +139,7 @@ serve(async (req) => {
       try {
         const { data: registrations, error: regError } = await supabase
           .from("event_registrations")
-          .select("assigned_dep_gate,assigned_arr_gate,pilot:pilots(user_id,full_name,pid,discord_user_id)")
+          .select("assigned_dep_gate,assigned_arr_gate,discord_user_id,pilot:pilots(user_id,full_name,pid,discord_user_id)")
           .eq("event_id", event.id)
           .order("registered_at", { ascending: true });
 
@@ -166,7 +167,7 @@ serve(async (req) => {
         const lines = regRows.length
           ? regRows.map((r) => {
               const pilotName = r.pilot?.full_name || r.pilot?.pid || "Pilot";
-              const discordId = r.pilot?.discord_user_id || (r.pilot?.user_id ? identityMap.get(r.pilot.user_id) : undefined);
+              const discordId = r.discord_user_id || r.pilot?.discord_user_id || (r.pilot?.user_id ? identityMap.get(r.pilot.user_id) : undefined);
               const mention = discordId ? `<@${discordId}>` : pilotName;
               return `• ${mention} — DEP Gate: ${r.assigned_dep_gate || "TBD"} | ARR Gate: ${r.assigned_arr_gate || "TBD"}`;
             })
