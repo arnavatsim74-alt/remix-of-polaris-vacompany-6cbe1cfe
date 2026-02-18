@@ -325,7 +325,8 @@ function CourseContentManager({ courseId }: { courseId: string }) {
             {addingLesson === mod.id && (
             <div className="pl-4 p-3 border-l-2 space-y-2">
                 <Input placeholder="Lesson title" value={lessonForm.title} onChange={e => setLessonForm({ ...lessonForm, title: e.target.value })} />
-                <Textarea placeholder="Lesson content (markdown)" value={lessonForm.content} onChange={e => setLessonForm({ ...lessonForm, content: e.target.value })} rows={4} />
+                <Textarea placeholder="Lesson content (markdown)" value={lessonForm.content} onChange={e => setLessonForm({ ...lessonForm, content: e.target.value })} rows={6} />
+                <p className="text-xs text-muted-foreground">Supports markdown. Add images anywhere with <code>![alt](https://image-url)</code> or paste a direct image URL on its own line.</p>
                 <Input placeholder="Video URL (optional)" value={lessonForm.video_url} onChange={e => setLessonForm({ ...lessonForm, video_url: e.target.value })} />
                 <Input placeholder="Image URL (optional)" value={(lessonForm as any).image_url || ""} onChange={e => setLessonForm({ ...lessonForm, image_url: e.target.value } as any)} />
                 <div className="flex gap-2">

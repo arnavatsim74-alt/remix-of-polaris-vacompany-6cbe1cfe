@@ -1,4 +1,4 @@
-import { LogOut, User } from "lucide-react";
+import { LogOut, Settings, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   DropdownMenu,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Link } from "react-router-dom";
 
 export function UserMenu() {
   const { pilot, user, signOut } = useAuth();
@@ -46,6 +47,12 @@ export function UserMenu() {
             )}
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuItem asChild>
+          <Link to="/profile">
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Profile Settings</span>
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
           <LogOut className="mr-2 h-4 w-4" />

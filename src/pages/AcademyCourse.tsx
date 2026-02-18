@@ -24,14 +24,17 @@ function renderSimpleMarkdown(markdown?: string | null) {
     .replace(/^### (.*)$/gm, "<h3>$1</h3>")
     .replace(/^## (.*)$/gm, "<h2>$1</h2>")
     .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+    .replace(/^\- (.*)$/gm, "<li>$1</li>")
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
-    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img alt="$1" src="$2" class="rounded-md border my-3" />')
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img alt="$1" src="$2" class="rounded-md border my-3 max-h-[500px] w-auto" />')
+    .replace(/^https?:\/\/\S+\.(?:png|jpg|jpeg|gif|webp|svg)$/gim, '<img src="$&" alt="lesson image" class="rounded-md border my-3 max-h-[500px] w-auto" />')
     .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+    .replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>")
+    .replace(/\n\n+/g, "</p><p>")
     .replace(/\n/g, "<br />");
 
-
-  return { __html: html || "No content available for this lesson." };
+  return { __html: html ? `<p>${html}</p>` : "No content available for this lesson." };
 }
 
 export default function AcademyCourse() {
