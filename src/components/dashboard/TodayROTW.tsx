@@ -8,14 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Star, Plane, Clock, FileText } from "lucide-react";
 import { format, startOfWeek } from "date-fns";
 
-const rankLabels: Record<string, string> = {
-  cadet: "Cadet",
-  first_officer: "First Officer",
-  captain: "Captain",
-  senior_captain: "Senior Captain",
-  commander: "Commander",
-};
-
 export function TodayROTW() {
   const navigate = useNavigate();
   const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -57,7 +49,7 @@ export function TodayROTW() {
   };
 
   const handleFilePirep = (route: any) => {
-    navigate(`/file-pirep?dep=${route.dep_icao}&arr=${route.arr_icao}&aircraft=${route.aircraft_icao}`);
+    navigate(`/file-pirep?dep=${route.dep_icao}&arr=${route.arr_icao}&aircraft=${route.aircraft_icao}&rotw=1`);
   };
 
   if (isLoading) {
@@ -113,9 +105,6 @@ export function TodayROTW() {
                 <Clock className="h-4 w-4" />
                 {formatFlightTime(route.est_flight_time_minutes)}
               </span>
-              <Badge variant="outline" className="text-xs">
-                {rankLabels[route.min_rank] || route.min_rank}
-              </Badge>
             </div>
           </div>
           <Button onClick={() => handleFilePirep(route)}>

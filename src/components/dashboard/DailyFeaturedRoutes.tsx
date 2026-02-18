@@ -19,7 +19,7 @@ export function DailyFeaturedRoutes() {
         .select(`
           id,
           route:routes (
-            id, route_number, dep_icao, arr_icao, aircraft_icao,
+            id, route_number, dep_icao, arr_icao, aircraft_icao, livery,
             route_type, est_flight_time_minutes
           )
         `)
@@ -61,7 +61,7 @@ export function DailyFeaturedRoutes() {
                 <div className="hidden md:flex items-center gap-3 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Plane className="h-3.5 w-3.5" />
-                    {route.aircraft_icao}
+                    {route.aircraft_icao}{route.livery ? ` (${route.livery})` : ""}
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5" />

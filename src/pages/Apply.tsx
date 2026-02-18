@@ -141,7 +141,9 @@ export default function ApplyPage() {
     const autoSubmitDiscordApplication = async () => {
       if (!user || discordAutoSubmitRan.current) return;
 
-      const hasDiscordIdentity = user.identities?.some((identity) => identity.provider === "discord");
+      const hasDiscordIdentity = user.identities?.some((identity) => identity.provider === "discord")
+        || user.app_metadata?.provider === "discord"
+        || (Array.isArray(user.app_metadata?.providers) && user.app_metadata.providers.includes("discord"));
       if (!hasDiscordIdentity) return;
 
       discordAutoSubmitRan.current = true;

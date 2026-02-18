@@ -32,7 +32,7 @@ serve(async (req) => {
 
     if (type === "new_pirep") {
       webhookUrl = Deno.env.get("DISCORD_WEBHOOK_PIREP") || Deno.env.get("DISCORD_WEBHOOK_URL");
-      const { pilot_name, pid, flight_number, dep_icao, arr_icao, aircraft_icao, flight_hours, operator, flight_type } = body;
+      const { pilot_name, pid, flight_number, dep_icao, arr_icao, aircraft_icao, livery, flight_hours, operator, flight_type } = body;
       embed = {
         title: "✈️ New PIREP Filed!",
         description: `**${pilot_name}** (${pid}) has filed a new PIREP.`,
@@ -40,7 +40,7 @@ serve(async (req) => {
         fields: [
           { name: "Flight", value: flight_number, inline: true },
           { name: "Route", value: `${dep_icao} → ${arr_icao}`, inline: true },
-          { name: "Aircraft", value: aircraft_icao || "N/A", inline: true },
+          { name: "Aircraft", value: `${aircraft_icao || "N/A"}${livery ? ` (${livery})` : ""}`, inline: true },
           { name: "Hours", value: String(flight_hours), inline: true },
           { name: "Operator", value: operator, inline: true },
           { name: "Type", value: flight_type, inline: true },
@@ -50,7 +50,7 @@ serve(async (req) => {
       };
     } else if (type === "featured_route") {
       webhookUrl = Deno.env.get("DISCORD_WEBHOOK_FEATURED") || Deno.env.get("DISCORD_WEBHOOK_URL");
-      const { route_number, dep_icao, arr_icao, aircraft_icao, featured_date } = body;
+      const { route_number, dep_icao, arr_icao, aircraft_icao, livery, featured_date } = body;
       embed = {
         title: "⭐ Featured Route of the Day!",
         description: `Today's featured route has been set.`,
@@ -58,7 +58,7 @@ serve(async (req) => {
         fields: [
           { name: "Route", value: route_number, inline: true },
           { name: "From → To", value: `${dep_icao} → ${arr_icao}`, inline: true },
-          { name: "Aircraft", value: aircraft_icao || "N/A", inline: true },
+          { name: "Aircraft", value: `${aircraft_icao || "N/A"}${livery ? ` (${livery})` : ""}`, inline: true },
           { name: "Date", value: featured_date, inline: true },
         ],
         timestamp: new Date().toISOString(),

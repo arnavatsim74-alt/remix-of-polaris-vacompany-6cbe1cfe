@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Loader2, Plane } from "lucide-react";
@@ -36,6 +37,7 @@ export default function FilePirep() {
   const [selectedMultiplier, setSelectedMultiplier] = useState("1");
   const [operator, setOperator] = useState("");
   const [flightType, setFlightType] = useState<"passenger" | "cargo">("passenger");
+  const [showAllAircraft, setShowAllAircraft] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Pre-fill from URL params (from Routes / ROTW "File PIREP" buttons)
@@ -125,7 +127,7 @@ export default function FilePirep() {
   };
 
   const availableAircraft = getUniqueAircraft(
-    (!isEventOrRotw && unlockedAircraftIcaos)
+    (!isEventOrRotw && !showAllAircraft && unlockedAircraftIcaos)
       ? aircraft?.filter(ac => unlockedAircraftIcaos.includes(ac.icao_code.toUpperCase()))
       : aircraft
   );
@@ -153,7 +155,7 @@ export default function FilePirep() {
     }
 
     // Check aircraft is unlocked for the pilot (unless event/ROTW)
-    if (!isEventOrRotw && unlockedAircraftIcaos && !unlockedAircraftIcaos.includes(aircraftIcao.toUpperCase())) {
+    if (!isEventOrRotw && !showAllAircraft && unlockedAircraftIcaos && !unlockedAircraftIcaos.includes(aircraftIcao.toUpperCase())) {
       toast.error("This aircraft is not unlocked for your rank"); return;
     }
 
@@ -273,7 +275,20 @@ export default function FilePirep() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {!isEventOrRotw && unlockedAircraftIcaos && (
+                  {!isEventOrRotw && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <Checkbox
+                        id="rotw-fr-e"
+                        checked={showAllAircraft}
+                        onCheckedChange={(checked) => setShowAllAircraft(Boolean(checked))}
+                        disabled={isLoading}
+                      />
+                      <Label htmlFor="rotw-fr-e" className="text-xs font-normal text-muted-foreground">
+                        ROTW/FR/E (show all aircraft irrespective of rank)
+                      </Label>
+                    </div>
+                  )}
+                  {!isEventOrRotw && !showAllAircraft && unlockedAircraftIcaos && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Aircraft restricted by your rank. Events & ROTW flights bypass restrictions.
                     </p>

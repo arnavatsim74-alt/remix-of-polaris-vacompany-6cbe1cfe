@@ -102,7 +102,7 @@ const getOperators = async () => {
 };
 
 const searchAircraft = async (query: string) => {
-  let request = supabase.from("aircraft").select("icao_code,name").order("icao_code").limit(25);
+  let request = supabase.from("aircraft").select("icao_code,name,livery").order("icao_code").limit(25);
   const q = query.trim();
   if (q) request = request.or(`icao_code.ilike.%${q}%,name.ilike.%${q}%`);
   const { data, error } = await request;
@@ -261,12 +261,20 @@ const handlePirep = async (body: any) => {
   }
 
   const multiplierValue = await resolveMultiplierValue(options.multiplier);
+  const selectedAircraftIcao = String(options.aircraft || "").toUpperCase();
+  const { data: selectedAircraft } = await supabase
+    .from("aircraft")
+    .select("icao_code,livery")
+    .eq("icao_code", selectedAircraftIcao)
+    .maybeSingle();
+  const aircraftWithLivery = `${selectedAircraftIcao}${selectedAircraft?.livery ? ` (${selectedAircraft.livery})` : ""}`;
+
   const { error } = await supabase.from("pireps").insert({
     flight_number: String(options.flight_number || "").toUpperCase(),
     dep_icao: String(options.dep_icao || "").toUpperCase(),
     arr_icao: String(options.arr_icao || "").toUpperCase(),
     operator: String(options.operator || ""),
-    aircraft_icao: String(options.aircraft || "").toUpperCase(),
+    aircraft_icao: selectedAircraftIcao,
     flight_type: String(options.flight_type || "passenger"),
     flight_hours: Number(options.flight_hours || 0),
     flight_date: options.flight_date || new Date().toISOString().slice(0, 10),
@@ -289,7 +297,7 @@ const handlePirep = async (body: any) => {
     color: COLORS.GREEN,
     fields: [
       { name: "Pilot", value: pilot.full_name, inline: true },
-      { name: "Aircraft", value: String(options.aircraft || "").toUpperCase(), inline: true },
+      { name: "Aircraft", value: aircraftWithLivery || "N/A", inline: true },
       { name: "Operator", value: String(options.operator || "N/A"), inline: true },
       { name: "Hours", value: `${Number(options.flight_hours || 0).toFixed(1)}h`, inline: true },
       { name: "Multiplier", value: `${multiplierValue.toFixed(1)}x`, inline: true },
@@ -438,7 +446,7 @@ const handleNotams = async () => {
 const handleRotw = async () => {
   const { data: rotw } = await supabase
     .from("routes_of_week")
-    .select("day_of_week,route:routes(route_number,dep_icao,arr_icao,aircraft_icao)")
+    .select("day_of_week,route:routes(route_number,dep_icao,arr_icao,aircraft_icao,livery,est_flight_time_minutes)")
     .eq("week_start", getCurrentWeekStartISO())
     .order("day_of_week", { ascending: true });
 
@@ -449,7 +457,7 @@ const handleRotw = async () => {
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const lines = rotw.map((r: any) => {
     const route = Array.isArray(r.route) ? r.route[0] : r.route;
-    return `**${dayNames[r.day_of_week] || "Day"}** — ${route?.route_number || "N/A"}: ${route?.dep_icao || "----"} → ${route?.arr_icao || "----"} (${route?.aircraft_icao || "N/A"})`;
+    return `**${dayNames[r.day_of_week] || "Day"}** — **${route?.route_number || "N/A"}** | ${route?.dep_icao || "----"} → ${route?.arr_icao || "----"} | ${route?.aircraft_icao || "N/A"}${route?.livery ? ` (${route.livery})` : ""} | ${route?.est_flight_time_minutes ? `${Math.floor(route.est_flight_time_minutes / 60)}:${String(route.est_flight_time_minutes % 60).padStart(2, "0")}` : "N/A"}`;
   });
 
   return embedResponse({ title: "🗺️ Routes of the Week", description: lines.join("\n"), color: COLORS.BLUE });
@@ -504,7 +512,13 @@ const handleJoinEventButton = async (body: any, eventId: string) => {
 const handleAcceptChallengeButton = async (body: any, challengeId: string) => {
   const pilot = await getPilotFromInteraction(body);
   if (!pilot?.id) {
-    return embedResponse({ title: "Challenge Action Failed", description: "No pilot mapping found for your Discord account.", color: COLORS.RED });
+    return Response.json({
+      type: 4,
+      data: {
+        content: "⚠️ No pilot mapping found for your Discord account.",
+        flags: 64,
+      },
+    });
   }
 
   const { data: existing } = await supabase
@@ -523,7 +537,13 @@ const handleAcceptChallengeButton = async (body: any, challengeId: string) => {
     } as any);
 
     if (error) {
-      return embedResponse({ title: "Challenge Action Failed", description: error.message, color: COLORS.RED });
+      return Response.json({
+        type: 4,
+        data: {
+          content: `⚠️ Challenge action failed: ${error.message}`,
+          flags: 64,
+        },
+      });
     }
   }
 
@@ -560,7 +580,7 @@ serve(async (req) => {
 
     if (focused.name === "aircraft") {
       const choices = (await searchAircraft(String(focused.value || ""))).map((a: any) => ({
-        name: `${a.icao_code} - ${a.name || "Unknown"}`.slice(0, 100),
+        name: `${a.icao_code} - ${a.name || "Unknown"}${a.livery ? ` (${a.livery})` : ""}`.slice(0, 100),
         value: a.icao_code,
       }));
       return Response.json({ type: 8, data: { choices } });

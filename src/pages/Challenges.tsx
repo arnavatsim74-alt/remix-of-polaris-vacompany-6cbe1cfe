@@ -8,6 +8,25 @@ import { Target, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
+function renderSimpleMarkdown(markdown?: string | null) {
+  const text = markdown || "";
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  const html = escaped
+    .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+    .replace(/\n/g, "<br />");
+
+  return { __html: html || "-" };
+}
+
 export default function Challenges() {
   const { pilot } = useAuth();
   const queryClient = useQueryClient();
@@ -105,12 +124,12 @@ export default function Challenges() {
                 )}
                 <CardContent className="p-4">
                   <h3 className="font-semibold">{challenge.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {challenge.description}
+                  <div className="text-sm text-muted-foreground mt-1 space-y-1">
+                    <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={renderSimpleMarkdown(challenge.description)} />
                     {challenge.destination_icao && (
-                      <> — Destination: <span className="font-mono text-primary">{challenge.destination_icao}</span></>
+                      <p>Destination: <span className="font-mono text-primary">{challenge.destination_icao}</span></p>
                     )}
-                  </p>
+                  </div>
                   <Badge
                     variant={isCompleted ? "default" : "outline"}
                     className={`mt-2 ${isCompleted ? "bg-primary/20 text-primary" : "text-destructive border-destructive/50"}`}

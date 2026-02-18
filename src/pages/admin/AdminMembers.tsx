@@ -121,7 +121,10 @@ export default function AdminMembers() {
       toast.success("Member removed");
       setDeletingPilot(null);
     },
-    onError: () => toast.error("Failed to remove member"),
+    onError: (error: any) => {
+      console.error(error);
+      toast.error(error?.message || "Failed to remove member");
+    },
   });
 
   const openEdit = (pilot: any) => {
