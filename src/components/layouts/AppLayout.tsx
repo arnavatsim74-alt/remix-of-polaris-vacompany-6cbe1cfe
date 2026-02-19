@@ -25,9 +25,9 @@ export function AppLayout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-svh flex w-full">
+      <div className="h-dvh min-h-screen flex w-full overflow-hidden">
         <AppSidebar />
-        <div className="flex-1 w-0 min-w-0 flex min-h-svh flex-col">
+        <div className="flex-1 w-0 min-w-0 flex flex-col">
           {/* Header */}
           <header className="sticky top-0 z-40 h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <div className="flex h-full items-center gap-4 px-4">

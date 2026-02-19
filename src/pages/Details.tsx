@@ -53,11 +53,11 @@ export default function Details() {
             </CardHeader>
             <CardContent>
               {aircraftLoading ? (
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                   {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-40" />)}
                 </div>
               ) : (
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                   {aircraft?.map((ac) => (
                     <Card key={ac.id} className="overflow-hidden">
                       {ac.image_url ? (
