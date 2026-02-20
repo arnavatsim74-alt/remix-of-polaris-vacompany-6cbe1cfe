@@ -1037,6 +1037,7 @@ export type Database = {
           pending_email: string | null
           preferred_pid: string | null
           practical_assigned_at: string | null
+          retest_sent_at: string | null
           created_at: string
           exam_message_id: string | null
           recruitment_channel_id: string | null
@@ -1054,6 +1055,7 @@ export type Database = {
           pending_email?: string | null
           preferred_pid?: string | null
           practical_assigned_at?: string | null
+          retest_sent_at?: string | null
           created_at?: string
           exam_message_id?: string | null
           recruitment_channel_id?: string | null
@@ -1071,6 +1073,7 @@ export type Database = {
           pending_email?: string | null
           preferred_pid?: string | null
           practical_assigned_at?: string | null
+          retest_sent_at?: string | null
           created_at?: string
           exam_message_id?: string | null
           recruitment_channel_id?: string | null
