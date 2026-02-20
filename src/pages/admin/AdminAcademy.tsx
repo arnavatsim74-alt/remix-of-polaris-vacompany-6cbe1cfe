@@ -357,7 +357,7 @@ function CourseContentManager({ courseId }: { courseId: string }) {
 function ExamsTab() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", course_id: "", passing_score: 70, time_limit_minutes: 30, max_attempts: 3, is_published: false });
+  const [form, setForm] = useState({ title: "", description: "", course_id: "standalone", passing_score: 70, time_limit_minutes: 30, max_attempts: 3, is_published: false });
   const [managingExamId, setManagingExamId] = useState<string | null>(null);
   const [viewingResultsExamId, setViewingResultsExamId] = useState<string | null>(null);
 
@@ -382,7 +382,7 @@ function ExamsTab() {
       const { error } = await supabase.from("academy_exams").insert({
         title: form.title,
         description: form.description,
-        course_id: form.course_id,
+        course_id: form.course_id === "standalone" ? null : form.course_id,
         passing_score: form.passing_score,
         time_limit_minutes: form.time_limit_minutes || null,
         max_attempts: form.max_attempts,
@@ -433,10 +433,13 @@ function ExamsTab() {
                 <div className="space-y-2"><Label>Title</Label><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} /></div>
                 <div className="space-y-2">
-                  <Label>Course</Label>
+                  <Label>Course (optional)</Label>
                   <Select value={form.course_id} onValueChange={v => setForm({ ...form, course_id: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
-                    <SelectContent>{courses?.map(c => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}</SelectContent>
+                    <SelectTrigger><SelectValue placeholder="Standalone exam" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="standalone">Standalone exam (not linked to course)</SelectItem>
+                      {courses?.map(c => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
+                    </SelectContent>
                   </Select>
                 </div>
                 <div className="grid gap-4 grid-cols-3">
@@ -463,7 +466,7 @@ function ExamsTab() {
                       <span className="font-medium">{exam.title}</span>
                       {exam.is_published ? <Badge>Published</Badge> : <Badge variant="secondary">Draft</Badge>}
                     </div>
-                    <p className="text-xs text-muted-foreground">{exam.academy_courses?.title} · {exam.passing_score}% pass · {exam.max_attempts} attempts</p>
+                    <p className="text-xs text-muted-foreground">{exam.academy_courses?.title || "Standalone Exam"} · {exam.passing_score}% pass · {exam.max_attempts} attempts</p>
                   </div>
                   <div className="flex gap-1 items-center">
                     <div className="flex items-center gap-1 mr-2">
