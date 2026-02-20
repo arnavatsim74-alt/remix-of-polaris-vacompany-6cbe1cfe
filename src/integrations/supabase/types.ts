@@ -1449,6 +1449,10 @@ export type Database = {
     }
     Functions: {
       calculate_rank: { Args: { hours: number }; Returns: string }
+      can_access_recruitment_exam: {
+        Args: { p_token: string; p_user_id: string }
+        Returns: boolean
+      }
       check_and_assign_admin_role: {
         Args: { user_email: string; user_id_param: string }
         Returns: boolean
