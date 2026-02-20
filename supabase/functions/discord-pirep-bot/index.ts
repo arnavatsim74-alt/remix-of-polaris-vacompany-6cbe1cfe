@@ -152,15 +152,11 @@ const resolveMultiplierValue = async (input: string | null | undefined) => {
 };
 
 const resolvePilotByDiscordUser = async (discordUserId: string, discordUsername?: string | null) => {
-  const { data: identities } = await supabase
-    .schema("auth")
-    .from("identities")
-    .select("user_id")
-    .eq("provider", "discord")
-    .eq("provider_id", discordUserId)
-    .limit(1);
+  const { data: authUserId, error: authLookupError } = await supabase.rpc("get_auth_user_id_by_discord", {
+    p_discord_user_id: discordUserId,
+  });
+  if (authLookupError) throw authLookupError;
 
-  const authUserId = identities?.[0]?.user_id;
   if (authUserId) {
     const { data } = await supabase.from("pilots").select("id,pid,full_name").eq("user_id", authUserId).maybeSingle();
     if (data?.id) return data;
@@ -663,16 +659,11 @@ const createRecruitmentEmbed = async () => {
 };
 
 const resolveAuthUserFromDiscord = async (discordUserId: string) => {
-  const { data, error } = await supabase
-    .schema("auth")
-    .from("identities")
-    .select("user_id")
-    .eq("provider", "discord")
-    .eq("provider_id", discordUserId)
-    .limit(1);
-
+  const { data, error } = await supabase.rpc("get_auth_user_id_by_discord", {
+    p_discord_user_id: discordUserId,
+  });
   if (error) throw error;
-  return data?.[0]?.user_id || null;
+  return data || null;
 };
 
 const getRecruitmentExamId = async () => {
