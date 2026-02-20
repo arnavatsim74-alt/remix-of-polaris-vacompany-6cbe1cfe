@@ -1192,10 +1192,12 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
   }
 
   if (data?.approved && guildId) {
-    await discordApi(`/guilds/${guildId}/members/${discordUserId}`, {
+    const nickTask = discordApi(`/guilds/${guildId}/members/${discordUserId}`, {
       method: "PATCH",
       body: JSON.stringify({ nick: `[${preferredPid}] ${username}`.slice(0, 32) }),
     }).catch(() => null);
+
+    (globalThis as any).EdgeRuntime?.waitUntil?.(nickTask);
   }
 
   if (data?.approved) {
