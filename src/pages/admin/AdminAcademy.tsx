@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +17,28 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Plus, Trash2, Edit, GraduationCap, BookOpen, ClipboardCheck, Users, FileQuestion, Plane, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+
+function renderSimpleMarkdown(markdown?: string | null) {
+  const text = markdown || "";
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  const html = escaped
+    .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+    .replace(/^\- (.*)$/gm, "<li>$1</li>")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+    .replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>")
+    .replace(/\n\n+/g, "</p><p>")
+    .replace(/\n/g, "<br />");
+
+  return { __html: html ? `<p>${html}</p>` : "" };
+}
 
 export default function AdminAcademy() {
   const { isAdmin } = useAuth();
@@ -761,6 +783,7 @@ function PracticalsTab() {
   const [assignForm, setAssignForm] = useState({ pilot_id: "", course_id: "standalone", notes: "", scheduled_at: "" });
   const [failReasonId, setFailReasonId] = useState<string | null>(null);
   const [failReason, setFailReason] = useState("");
+  const [recruitmentPracticalTarget, setRecruitmentPracticalTarget] = useState("standalone");
 
   const { data: practicals, isLoading } = useQuery({
     queryKey: ["admin-practicals"],
@@ -785,6 +808,18 @@ function PracticalsTab() {
       return data || [];
     },
   });
+
+  const { data: recruitmentPracticalSetting } = useQuery({
+    queryKey: ["recruitment-practical-setting"],
+    queryFn: async () => {
+      const { data } = await supabase.from("site_settings").select("value").eq("key", "recruitment_practical_id").maybeSingle();
+      return data?.value ? String(data.value) : "standalone";
+    },
+  });
+
+  useEffect(() => {
+    if (recruitmentPracticalSetting) setRecruitmentPracticalTarget(recruitmentPracticalSetting);
+  }, [recruitmentPracticalSetting]);
 
   const { data: aircraft } = useQuery({
     queryKey: ["aircraft-list"],
@@ -813,6 +848,21 @@ function PracticalsTab() {
       setAssignForm({ pilot_id: "", course_id: "standalone", notes: "", scheduled_at: "" });
     },
     onError: (e) => toast.error(e.message || "Failed to assign practical"),
+  });
+
+  const saveRecruitmentPracticalMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("site_settings").upsert({
+        key: "recruitment_practical_id",
+        value: recruitmentPracticalTarget,
+      }, { onConflict: "key" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recruitment-practical-setting"] });
+      toast.success("Recruitment auto practical updated");
+    },
+    onError: (e) => toast.error(e.message || "Failed to update recruitment practical setting"),
   });
 
   const updateMutation = useMutation({
@@ -858,13 +908,14 @@ function PracticalsTab() {
         </div>
         <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" /> Assign Practical</Button>
+            <Button><Plus className="h-4 w-4 mr-2" /> Assign Practical (Manual)</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Assign Practical Flight</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Pilot</Label>
+                <p className="text-xs text-muted-foreground">For bot auto-assignments, use the "Recruitment Auto Practical" setting below. This picker is only for manual assignments.</p>
                 <Select value={assignForm.pilot_id} onValueChange={v => setAssignForm({ ...assignForm, pilot_id: v })}>
                   <SelectTrigger><SelectValue placeholder="Select pilot" /></SelectTrigger>
                   <SelectContent>
@@ -903,6 +954,23 @@ function PracticalsTab() {
         </Dialog>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 p-3 rounded-lg border bg-muted/40 space-y-2">
+          <p className="text-sm font-medium">Recruitment Auto Practical</p>
+          <p className="text-xs text-muted-foreground">This decides what practical the bot auto-assigns after callsign approval. Choose standalone or a specific course UUID.</p>
+          <div className="flex flex-col md:flex-row gap-2">
+            <Select value={recruitmentPracticalTarget} onValueChange={setRecruitmentPracticalTarget}>
+              <SelectTrigger className="md:w-[360px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="standalone">Standalone practical</SelectItem>
+                {courses?.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={() => saveRecruitmentPracticalMutation.mutate()} disabled={saveRecruitmentPracticalMutation.isPending}>Save auto practical</Button>
+          </div>
+        </div>
+
         {isLoading ? <Skeleton className="h-40" /> : practicals && practicals.length > 0 ? (
           <div className="space-y-3">
             {practicals.map((p: any) => (
@@ -910,7 +978,7 @@ function PracticalsTab() {
                 <div className="flex-1">
                   <p className="font-medium">{p.pilots?.full_name} ({p.pilots?.pid})</p>
                   <p className="text-xs text-muted-foreground">{p.academy_courses?.title || "Standalone practical"}</p>
-                  {p.notes && <p className="text-xs text-muted-foreground mt-1 italic">{p.notes}</p>}
+                  {p.notes && <div className="text-xs text-muted-foreground mt-1 prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={renderSimpleMarkdown(p.notes)} />}
                   {p.scheduled_at && <p className="text-xs text-muted-foreground">Scheduled: {new Date(p.scheduled_at).toLocaleString()}</p>}
                 </div>
                 <div className="flex items-center gap-2">
@@ -938,7 +1006,7 @@ function PracticalsTab() {
                       )}
                     </>
                   )}
-                  {p.result_notes && <span className="text-xs text-muted-foreground italic max-w-[150px] truncate">{p.result_notes}</span>}
+                  {p.result_notes && <div className="text-xs text-muted-foreground italic max-w-[260px] prose prose-sm dark:prose-invert" dangerouslySetInnerHTML={renderSimpleMarkdown(p.result_notes)} />}
                   <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-8 w-8 text-destructive"><Trash2 className="h-4 w-4" /></Button>} title="Delete Practical?" description="This practical assignment will be permanently deleted." onConfirm={() => deleteMutation.mutate(p.id)} />
                 </div>
               </div>
