@@ -340,7 +340,7 @@ export type Database = {
       academy_practicals: {
         Row: {
           completed_at: string | null
-          course_id: string
+          course_id: string | null
           created_at: string | null
           examiner_id: string | null
           id: string
@@ -353,7 +353,7 @@ export type Database = {
         }
         Insert: {
           completed_at?: string | null
-          course_id: string
+          course_id?: string | null
           created_at?: string | null
           examiner_id?: string | null
           id?: string
@@ -367,7 +367,7 @@ export type Database = {
         }
         Update: {
           completed_at?: string | null
-          course_id?: string
+          course_id?: string | null
           created_at?: string | null
           examiner_id?: string | null
           id?: string
@@ -1031,7 +1031,9 @@ export type Database = {
       recruitment_exam_sessions: {
         Row: {
           application_id: string
+          auth_user_id: string | null
           completed_at: string | null
+          discord_user_id: string | null
           created_at: string
           exam_id: string
           id: string
@@ -1041,7 +1043,9 @@ export type Database = {
         }
         Insert: {
           application_id: string
+          auth_user_id?: string | null
           completed_at?: string | null
+          discord_user_id?: string | null
           created_at?: string
           exam_id: string
           id?: string
@@ -1051,7 +1055,9 @@ export type Database = {
         }
         Update: {
           application_id?: string
+          auth_user_id?: string | null
           completed_at?: string | null
+          discord_user_id?: string | null
           created_at?: string
           exam_id?: string
           id?: string

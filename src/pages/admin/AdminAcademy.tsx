@@ -758,7 +758,7 @@ function QuestionEditForm({ initial, onCancel, onSave, isSaving }: { initial: an
 function PracticalsTab() {
   const queryClient = useQueryClient();
   const [isAssignOpen, setIsAssignOpen] = useState(false);
-  const [assignForm, setAssignForm] = useState({ pilot_id: "", course_id: "", notes: "", scheduled_at: "" });
+  const [assignForm, setAssignForm] = useState({ pilot_id: "", course_id: "standalone", notes: "", scheduled_at: "" });
   const [failReasonId, setFailReasonId] = useState<string | null>(null);
   const [failReason, setFailReason] = useState("");
 
@@ -796,10 +796,10 @@ function PracticalsTab() {
 
   const assignMutation = useMutation({
     mutationFn: async () => {
-      if (!assignForm.pilot_id || !assignForm.course_id) throw new Error("Select pilot and course");
+      if (!assignForm.pilot_id) throw new Error("Select pilot");
       const { error } = await supabase.from("academy_practicals").insert({
         pilot_id: assignForm.pilot_id,
-        course_id: assignForm.course_id,
+        course_id: assignForm.course_id === "standalone" ? null : assignForm.course_id,
         notes: assignForm.notes || null,
         scheduled_at: assignForm.scheduled_at || null,
         status: "scheduled",
@@ -810,7 +810,7 @@ function PracticalsTab() {
       queryClient.invalidateQueries({ queryKey: ["admin-practicals"] });
       toast.success("Practical assigned");
       setIsAssignOpen(false);
-      setAssignForm({ pilot_id: "", course_id: "", notes: "", scheduled_at: "" });
+      setAssignForm({ pilot_id: "", course_id: "standalone", notes: "", scheduled_at: "" });
     },
     onError: (e) => toast.error(e.message || "Failed to assign practical"),
   });
@@ -868,10 +868,11 @@ function PracticalsTab() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Course</Label>
+                <Label>Course (optional)</Label>
                 <Select value={assignForm.course_id} onValueChange={v => setAssignForm({ ...assignForm, course_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Standalone practical" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="standalone">Standalone practical (not linked to course)</SelectItem>
                     {courses?.map(c => (
                       <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
                     ))}
@@ -901,7 +902,7 @@ function PracticalsTab() {
               <div key={p.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                 <div className="flex-1">
                   <p className="font-medium">{p.pilots?.full_name} ({p.pilots?.pid})</p>
-                  <p className="text-xs text-muted-foreground">{p.academy_courses?.title}</p>
+                  <p className="text-xs text-muted-foreground">{p.academy_courses?.title || "Standalone practical"}</p>
                   {p.notes && <p className="text-xs text-muted-foreground mt-1 italic">{p.notes}</p>}
                   {p.scheduled_at && <p className="text-xs text-muted-foreground">Scheduled: {new Date(p.scheduled_at).toLocaleString()}</p>}
                 </div>

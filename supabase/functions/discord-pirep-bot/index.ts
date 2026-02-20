@@ -719,7 +719,7 @@ const ensureApplication = async (userId: string, discordUserId: string, username
 
 const createRecruitmentChannel = async (guildId: string, discordUserId: string, username: string) => {
   const safeUsername = username.toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 40) || discordUserId;
-  const channelName = `recruitment-${safeUsername}`;
+  const channelName = `recruitment-${safeUsername}-${discordUserId.slice(-4)}`;
 
   const response = await discordApi(`/guilds/${guildId}/channels`, {
     method: "POST",
@@ -737,6 +737,28 @@ const createRecruitmentChannel = async (guildId: string, discordUserId: string, 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload?.message || "Failed to create recruitment channel");
   return payload;
+};
+
+const getLatestRecruitmentCooldown = async (applicationId: string) => {
+  const { data, error } = await supabase
+    .from("recruitment_exam_sessions")
+    .select("completed_at, passed")
+    .eq("application_id", applicationId)
+    .eq("passed", false)
+    .not("completed_at", "is", null)
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data?.completed_at) return null;
+
+  const completedAt = new Date(data.completed_at).getTime();
+  const nextEligibleAt = completedAt + (24 * 60 * 60 * 1000);
+  const now = Date.now();
+  if (now >= nextEligibleAt) return null;
+
+  return Math.ceil((nextEligibleAt - now) / (60 * 1000));
 };
 
 const sendInteractionFollowup = async (applicationId: string, interactionToken: string, content: string) => {
@@ -763,11 +785,21 @@ const processRecruitmentButton = async (body: any) => {
 
   const examId = await getRecruitmentExamId();
   const applicationId = await ensureApplication(authUserId, discordUserId, username);
+
+  const cooldownMinutes = await getLatestRecruitmentCooldown(applicationId);
+  if (cooldownMinutes) {
+    const hours = Math.floor(cooldownMinutes / 60);
+    const minutes = cooldownMinutes % 60;
+    return `You need to wait before retest. Next exam link will be available in ${hours}h ${minutes}m.`;
+  }
+
   const token = crypto.randomUUID();
 
   const { error: sessionError } = await supabase.from("recruitment_exam_sessions").insert({
     application_id: applicationId,
     exam_id: examId,
+    auth_user_id: authUserId,
+    discord_user_id: discordUserId,
     token,
   });
   if (sessionError) throw sessionError;
