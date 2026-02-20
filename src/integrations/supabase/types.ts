@@ -923,13 +923,21 @@ export type Database = {
       }
       pilot_applications: {
         Row: {
+          age_range: string | null
           assigned_pid: string | null
           created_at: string | null
+          discord_username: string | null
           email: string
           experience_level: string
           full_name: string
+          hear_about_aflv: string | null
           id: string
+          if_grade: string | null
+          ifc_profile_url: string | null
+          ifc_trust_level: string | null
+          is_ifatc: string | null
           ivao_id: string | null
+          other_va_membership: string | null
           preferred_simulator: string
           reason_for_joining: string
           rejection_reason: string | null
@@ -939,13 +947,21 @@ export type Database = {
           vatsim_id: string | null
         }
         Insert: {
+          age_range?: string | null
           assigned_pid?: string | null
           created_at?: string | null
+          discord_username?: string | null
           email: string
           experience_level: string
           full_name: string
+          hear_about_aflv?: string | null
           id?: string
+          if_grade?: string | null
+          ifc_profile_url?: string | null
+          ifc_trust_level?: string | null
+          is_ifatc?: string | null
           ivao_id?: string | null
+          other_va_membership?: string | null
           preferred_simulator: string
           reason_for_joining: string
           rejection_reason?: string | null
@@ -955,13 +971,21 @@ export type Database = {
           vatsim_id?: string | null
         }
         Update: {
+          age_range?: string | null
           assigned_pid?: string | null
           created_at?: string | null
+          discord_username?: string | null
           email?: string
           experience_level?: string
           full_name?: string
+          hear_about_aflv?: string | null
           id?: string
+          if_grade?: string | null
+          ifc_profile_url?: string | null
+          ifc_trust_level?: string | null
+          is_ifatc?: string | null
           ivao_id?: string | null
+          other_va_membership?: string | null
           preferred_simulator?: string
           reason_for_joining?: string
           rejection_reason?: string | null
