@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,6 +24,9 @@ export default function AcademyExam() {
   const { examId } = useParams<{ examId: string }>();
   const { pilot } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const recruitmentToken = searchParams.get("recruitmentToken");
+  const isRecruitmentMode = !!recruitmentToken;
   const queryClient = useQueryClient();
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -63,7 +66,7 @@ export default function AcademyExam() {
         .order("started_at", { ascending: false });
       return data || [];
     },
-    enabled: !!pilot?.id && !!examId,
+    enabled: !!pilot?.id && !!examId && !isRecruitmentMode,
   });
 
   // Timer
@@ -85,7 +88,11 @@ export default function AcademyExam() {
 
   const startExamMutation = useMutation({
     mutationFn: async () => {
-      if (!pilot?.id || !examId) throw new Error("Missing data");
+      if (!examId) throw new Error("Missing exam id");
+      if (isRecruitmentMode) {
+        return { id: `recruitment-${Date.now()}` } as any;
+      }
+      if (!pilot?.id) throw new Error("Please log in to take this exam");
       const { data, error } = await supabase.from("academy_exam_attempts").insert({
         pilot_id: pilot.id,
         exam_id: examId,
@@ -99,7 +106,7 @@ export default function AcademyExam() {
       setCurrentQuestion(0);
       setIsSubmitted(false);
     },
-    onError: () => toast.error("Failed to start exam"),
+    onError: (e: any) => toast.error(e?.message || "Failed to start exam"),
   });
 
   const handleSubmit = async () => {
@@ -119,6 +126,20 @@ export default function AcademyExam() {
     setScore(calculatedScore);
     setIsSubmitted(true);
 
+    if (isRecruitmentMode && recruitmentToken) {
+      const { error } = await supabase.rpc("submit_recruitment_exam", {
+        p_token: recruitmentToken,
+        p_score: calculatedScore,
+        p_passed: passed,
+      });
+      if (error) {
+        toast.error(error.message || "Failed to submit recruitment exam");
+        return;
+      }
+      toast[passed ? "success" : "error"](passed ? `Passed with ${calculatedScore}%! Your application has been auto-approved.` : `Failed with ${calculatedScore}%`);
+      return;
+    }
+
     await supabase.from("academy_exam_attempts").update({
       score: calculatedScore,
       passed,
@@ -130,10 +151,10 @@ export default function AcademyExam() {
     toast[passed ? "success" : "error"](passed ? `Passed with ${calculatedScore}%!` : `Failed with ${calculatedScore}%`);
   };
 
-  const attemptsUsed = previousAttempts?.length || 0;
+  const attemptsUsed = isRecruitmentMode ? 0 : (previousAttempts?.length || 0);
   const maxAttempts = exam?.max_attempts || 3;
-  const canAttempt = attemptsUsed < maxAttempts;
-  const hasPassed = previousAttempts?.some(a => a.passed);
+  const canAttempt = isRecruitmentMode ? true : attemptsUsed < maxAttempts;
+  const hasPassed = isRecruitmentMode ? false : previousAttempts?.some(a => a.passed);
   const currentQ = questions?.[currentQuestion];
 
   const formatTime = (seconds: number) => {
@@ -142,7 +163,11 @@ export default function AcademyExam() {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  if (!exam) return null;
+  if (!exam) return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <Card><CardContent className="py-10 text-center text-muted-foreground">Loading exam...</CardContent></Card>
+    </div>
+  );
 
   // Pre-exam screen
   if (!attemptId && !isSubmitted) {
@@ -180,7 +205,7 @@ export default function AcademyExam() {
               </div>
             )}
             <Button className="w-full" onClick={() => startExamMutation.mutate()} disabled={!canAttempt || startExamMutation.isPending}>
-              {!canAttempt ? "No attempts remaining" : "Start Exam"}
+              {!canAttempt ? "No attempts remaining" : (isRecruitmentMode ? "Start Recruitment Exam" : "Start Exam")}
             </Button>
           </CardContent>
         </Card>
@@ -215,7 +240,7 @@ export default function AcademyExam() {
               );
             })}
             <Button className="w-full" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-4 w-4 mr-2" /> Back to Course
+              <ArrowLeft className="h-4 w-4 mr-2" /> Back
             </Button>
           </CardContent>
         </Card>

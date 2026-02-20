@@ -88,6 +88,26 @@ function CoursesTab() {
     onError: () => toast.error("Failed to save course"),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, question, options, explanation }: any) => {
+      const validOptions = options.filter((o: any) => o.text.trim());
+      if (validOptions.length < 2) throw new Error("At least 2 options required");
+      if (!validOptions.some((o: any) => o.is_correct)) throw new Error("Mark a correct answer");
+      const { error } = await supabase.from("academy_exam_questions").update({
+        question,
+        options: validOptions,
+        explanation: explanation || null,
+      }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-exam-questions", examId] });
+      toast.success("Question updated");
+      setEditingQuestionId(null);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update question"),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("academy_courses").delete().eq("id", id);
@@ -218,6 +238,8 @@ function CourseContentManager({ courseId }: { courseId: string }) {
   const [lessonForm, setLessonForm] = useState({ title: "", content: "", video_url: "", image_url: "", sort_order: 0, module_id: "" });
   const [addingModule, setAddingModule] = useState(false);
   const [addingLesson, setAddingLesson] = useState<string | null>(null);
+  const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
+  const [editLessonForm, setEditLessonForm] = useState({ title: "", content: "", video_url: "", image_url: "", sort_order: 0 });
 
   const { data: modules } = useQuery({
     queryKey: ["admin-modules", courseId],
@@ -281,6 +303,27 @@ function CourseContentManager({ courseId }: { courseId: string }) {
     },
   });
 
+
+  const updateLessonMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingLessonId) throw new Error("No lesson selected");
+      const { error } = await supabase.from("academy_lessons").update({
+        title: editLessonForm.title,
+        content: editLessonForm.content,
+        video_url: editLessonForm.video_url || null,
+        image_url: (editLessonForm as any).image_url || null,
+        sort_order: editLessonForm.sort_order,
+      } as any).eq("id", editingLessonId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-lessons", courseId] });
+      toast.success("Lesson updated");
+      setEditingLessonId(null);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update lesson"),
+  });
+
   const deleteLessonMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("academy_lessons").delete().eq("id", id);
@@ -337,9 +380,36 @@ function CourseContentManager({ courseId }: { courseId: string }) {
             )}
             <div className="pl-4 space-y-1">
               {lessons?.filter(l => l.module_id === mod.id).map(lesson => (
-                <div key={lesson.id} className="flex items-center justify-between py-1 text-sm">
-                  <span>{lesson.title}</span>
-                  <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-6 w-6 text-destructive"><Trash2 className="h-3 w-3" /></Button>} title="Delete Lesson?" description="This lesson will be permanently deleted." onConfirm={() => deleteLessonMutation.mutate(lesson.id)} />
+                <div key={lesson.id} className="py-1 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span>{lesson.title}</span>
+                    <div className="flex items-center gap-1">
+                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
+                        setEditingLessonId(editingLessonId === lesson.id ? null : lesson.id);
+                        setEditLessonForm({
+                          title: lesson.title || "",
+                          content: lesson.content || "",
+                          video_url: (lesson as any).video_url || "",
+                          image_url: (lesson as any).image_url || "",
+                          sort_order: lesson.sort_order || 0,
+                        });
+                      }}><Edit className="h-3 w-3" /></Button>
+                      <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-6 w-6 text-destructive"><Trash2 className="h-3 w-3" /></Button>} title="Delete Lesson?" description="This lesson will be permanently deleted." onConfirm={() => deleteLessonMutation.mutate(lesson.id)} />
+                    </div>
+                  </div>
+                  {editingLessonId === lesson.id && (
+                    <div className="mt-2 p-2 border rounded space-y-2">
+                      <Input placeholder="Lesson title" value={editLessonForm.title} onChange={e => setEditLessonForm({ ...editLessonForm, title: e.target.value })} />
+                      <Textarea placeholder="Lesson content" value={editLessonForm.content} onChange={e => setEditLessonForm({ ...editLessonForm, content: e.target.value })} rows={5} />
+                      <Input placeholder="Video URL (optional)" value={editLessonForm.video_url} onChange={e => setEditLessonForm({ ...editLessonForm, video_url: e.target.value })} />
+                      <Input placeholder="Image URL (optional)" value={(editLessonForm as any).image_url || ""} onChange={e => setEditLessonForm({ ...editLessonForm, image_url: e.target.value } as any)} />
+                      <Input type="number" placeholder="Sort order" value={editLessonForm.sort_order} onChange={e => setEditLessonForm({ ...editLessonForm, sort_order: parseInt(e.target.value) || 0 })} />
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => updateLessonMutation.mutate()} disabled={updateLessonMutation.isPending}>Update Lesson</Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingLessonId(null)}>Cancel</Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -357,7 +427,7 @@ function CourseContentManager({ courseId }: { courseId: string }) {
 function ExamsTab() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", course_id: "", passing_score: 70, time_limit_minutes: 30, max_attempts: 3, is_published: false });
+  const [form, setForm] = useState({ title: "", description: "", course_id: "standalone", passing_score: 70, time_limit_minutes: 30, max_attempts: 3, is_published: false });
   const [managingExamId, setManagingExamId] = useState<string | null>(null);
   const [viewingResultsExamId, setViewingResultsExamId] = useState<string | null>(null);
 
@@ -382,7 +452,7 @@ function ExamsTab() {
       const { error } = await supabase.from("academy_exams").insert({
         title: form.title,
         description: form.description,
-        course_id: form.course_id,
+        course_id: form.course_id === "standalone" ? null : form.course_id,
         passing_score: form.passing_score,
         time_limit_minutes: form.time_limit_minutes || null,
         max_attempts: form.max_attempts,
@@ -396,6 +466,26 @@ function ExamsTab() {
       setIsOpen(false);
     },
     onError: () => toast.error("Failed to create exam"),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, question, options, explanation }: any) => {
+      const validOptions = options.filter((o: any) => o.text.trim());
+      if (validOptions.length < 2) throw new Error("At least 2 options required");
+      if (!validOptions.some((o: any) => o.is_correct)) throw new Error("Mark a correct answer");
+      const { error } = await supabase.from("academy_exam_questions").update({
+        question,
+        options: validOptions,
+        explanation: explanation || null,
+      }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-exam-questions", examId] });
+      toast.success("Question updated");
+      setEditingQuestionId(null);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update question"),
   });
 
   const deleteMutation = useMutation({
@@ -433,10 +523,13 @@ function ExamsTab() {
                 <div className="space-y-2"><Label>Title</Label><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} /></div>
                 <div className="space-y-2">
-                  <Label>Course</Label>
+                  <Label>Course (optional)</Label>
                   <Select value={form.course_id} onValueChange={v => setForm({ ...form, course_id: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
-                    <SelectContent>{courses?.map(c => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}</SelectContent>
+                    <SelectTrigger><SelectValue placeholder="Standalone exam" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="standalone">Standalone exam (not linked to course)</SelectItem>
+                      {courses?.map(c => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
+                    </SelectContent>
                   </Select>
                 </div>
                 <div className="grid gap-4 grid-cols-3">
@@ -463,7 +556,7 @@ function ExamsTab() {
                       <span className="font-medium">{exam.title}</span>
                       {exam.is_published ? <Badge>Published</Badge> : <Badge variant="secondary">Draft</Badge>}
                     </div>
-                    <p className="text-xs text-muted-foreground">{exam.academy_courses?.title} · {exam.passing_score}% pass · {exam.max_attempts} attempts</p>
+                    <p className="text-xs text-muted-foreground">{exam.academy_courses?.title || "Standalone Exam"} · {exam.passing_score}% pass · {exam.max_attempts} attempts</p>
                   </div>
                   <div className="flex gap-1 items-center">
                     <div className="flex items-center gap-1 mr-2">
@@ -552,6 +645,7 @@ function ExamQuestionsManager({ examId }: { examId: string }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ question: "", options: [{ text: "", is_correct: false }, { text: "", is_correct: false }, { text: "", is_correct: false }, { text: "", is_correct: false }], explanation: "" });
   const [adding, setAdding] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
 
   const { data: questions } = useQuery({
     queryKey: ["admin-exam-questions", examId],
@@ -582,6 +676,26 @@ function ExamQuestionsManager({ examId }: { examId: string }) {
       setForm({ question: "", options: [{ text: "", is_correct: false }, { text: "", is_correct: false }, { text: "", is_correct: false }, { text: "", is_correct: false }], explanation: "" });
     },
     onError: (e) => toast.error(e.message || "Failed to add question"),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, question, options, explanation }: any) => {
+      const validOptions = options.filter((o: any) => o.text.trim());
+      if (validOptions.length < 2) throw new Error("At least 2 options required");
+      if (!validOptions.some((o: any) => o.is_correct)) throw new Error("Mark a correct answer");
+      const { error } = await supabase.from("academy_exam_questions").update({
+        question,
+        options: validOptions,
+        explanation: explanation || null,
+      }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-exam-questions", examId] });
+      toast.success("Question updated");
+      setEditingQuestionId(null);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update question"),
   });
 
   const deleteMutation = useMutation({
@@ -622,21 +736,57 @@ function ExamQuestionsManager({ examId }: { examId: string }) {
           </div>
         )}
         {questions?.map((q: any, idx: number) => (
-          <div key={q.id} className="flex items-start justify-between p-2 bg-muted/50 rounded text-sm">
-            <div>
-              <p className="font-medium">Q{idx + 1}: {q.question}</p>
-              <div className="text-xs text-muted-foreground mt-1">
-                {(q.options as any[]).map((o: any, i: number) => (
-                  <span key={i} className={o.is_correct ? "text-green-500 font-medium" : ""}>{o.text}{i < q.options.length - 1 ? " · " : ""}</span>
-                ))}
+          <div key={q.id} className="p-2 bg-muted/50 rounded text-sm space-y-2">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="font-medium">Q{idx + 1}: {q.question}</p>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {(q.options as any[]).map((o: any, i: number) => (
+                    <span key={i} className={o.is_correct ? "text-green-500 font-medium" : ""}>{o.text}{i < q.options.length - 1 ? " · " : ""}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => setEditingQuestionId(editingQuestionId === q.id ? null : q.id)}><Edit className="h-3 w-3" /></Button>
+                <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-6 w-6 text-destructive shrink-0"><Trash2 className="h-3 w-3" /></Button>} title="Delete Question?" description="This question will be permanently deleted." onConfirm={() => deleteMutation.mutate(q.id)} />
               </div>
             </div>
-            <ConfirmDialog trigger={<Button size="icon" variant="ghost" className="h-6 w-6 text-destructive shrink-0"><Trash2 className="h-3 w-3" /></Button>} title="Delete Question?" description="This question will be permanently deleted." onConfirm={() => deleteMutation.mutate(q.id)} />
+            {editingQuestionId === q.id && (
+              <QuestionEditForm
+                initial={q}
+                onCancel={() => setEditingQuestionId(null)}
+                onSave={(payload) => updateMutation.mutate({ id: q.id, ...payload })}
+                isSaving={updateMutation.isPending}
+              />
+            )}
           </div>
         ))}
         {!questions?.length && !adding && <p className="text-center text-sm text-muted-foreground py-4">No questions yet</p>}
       </CardContent>
     </Card>
+  );
+}
+
+function QuestionEditForm({ initial, onCancel, onSave, isSaving }: { initial: any; onCancel: () => void; onSave: (payload: any) => void; isSaving: boolean }) {
+  const [question, setQuestion] = useState(initial.question || "");
+  const [explanation, setExplanation] = useState(initial.explanation || "");
+  const [options, setOptions] = useState((initial.options || [{ text: "", is_correct: false }, { text: "", is_correct: false }, { text: "", is_correct: false }, { text: "", is_correct: false }]).map((o: any) => ({ text: o.text || "", is_correct: !!o.is_correct })));
+
+  return (
+    <div className="border rounded p-2 space-y-2">
+      <Input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Question text" />
+      {options.map((opt: any, i: number) => (
+        <div key={i} className="flex items-center gap-2">
+          <input type="radio" name={`correct-${initial.id}`} checked={opt.is_correct} onChange={() => setOptions(options.map((o: any, j: number) => ({ ...o, is_correct: j === i })))} />
+          <Input value={opt.text} onChange={(e) => setOptions(options.map((o: any, j: number) => (j === i ? { ...o, text: e.target.value } : o)))} placeholder={`Option ${i + 1}`} />
+        </div>
+      ))}
+      <Input value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="Explanation (optional)" />
+      <div className="flex gap-2">
+        <Button size="sm" disabled={isSaving} onClick={() => onSave({ question, options, explanation })}>Save</Button>
+        <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
   );
 }
 
@@ -714,6 +864,26 @@ function PracticalsTab() {
       queryClient.invalidateQueries({ queryKey: ["admin-practicals"] });
       toast.success("Practical updated");
     },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, question, options, explanation }: any) => {
+      const validOptions = options.filter((o: any) => o.text.trim());
+      if (validOptions.length < 2) throw new Error("At least 2 options required");
+      if (!validOptions.some((o: any) => o.is_correct)) throw new Error("Mark a correct answer");
+      const { error } = await supabase.from("academy_exam_questions").update({
+        question,
+        options: validOptions,
+        explanation: explanation || null,
+      }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-exam-questions", examId] });
+      toast.success("Question updated");
+      setEditingQuestionId(null);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update question"),
   });
 
   const deleteMutation = useMutation({
