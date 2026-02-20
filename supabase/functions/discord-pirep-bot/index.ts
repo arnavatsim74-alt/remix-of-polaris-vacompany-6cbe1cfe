@@ -19,6 +19,8 @@ const RECRUITMENT_BUTTON_CUSTOM_ID = "recruitment_fly_high";
 const RECRUITMENT_CALLSIGN_BUTTON_PREFIX = "recruitment_set_callsign:";
 const RECRUITMENT_CALLSIGN_MODAL_PREFIX = "recruitment_callsign_modal:";
 const RECRUITMENT_PRACTICAL_READY_PREFIX = "recruitment_practical_ready:";
+const RECRUITMENT_PRACTICAL_REVIEW_PREFIX = "recruitment_practical_review:";
+const RECRUITMENT_PRACTICAL_REVIEWER_ROLE_ID = "1427942885004808263";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
@@ -827,16 +829,7 @@ const getLatestRecruitmentSessionForUser = async (userId: string) => {
   return session || null;
 };
 
-const handlePracticalStatusAction = async (body: any, authHeader: string | null) => {
-  const adminUserId = await verifyAdminFromAuthHeader(authHeader);
-  if (!adminUserId) return new Response("Unauthorized", { status: 401 });
-
-  const practicalId = String(body?.practicalId || "");
-  const status = String(body?.status || "");
-  if (!practicalId || !["passed", "failed"].includes(status)) {
-    return new Response("Invalid practical payload", { status: 400 });
-  }
-
+const applyPracticalStatus = async (practicalId: string, status: "passed" | "failed") => {
   const { data: practical, error: practicalError } = await supabase
     .from("academy_practicals")
     .select("id, pilot_id, course_id, notes, status, pilots!academy_practicals_pilot_id_fkey(id, user_id, pid, full_name, discord_user_id)")
@@ -844,7 +837,22 @@ const handlePracticalStatusAction = async (body: any, authHeader: string | null)
     .maybeSingle();
 
   if (practicalError || !practical?.pilots) {
-    return new Response("Practical not found", { status: 404 });
+    throw new Error("Practical not found");
+  }
+
+  const updatePayload: Record<string, any> = {
+    status,
+    completed_at: new Date().toISOString(),
+    result_notes: status === "passed" ? "Passed via recruitment Discord review action" : "Failed via recruitment Discord review action",
+  };
+
+  const { error: updateError } = await supabase
+    .from("academy_practicals")
+    .update(updatePayload)
+    .eq("id", practicalId);
+
+  if (updateError) {
+    throw updateError;
   }
 
   const pilot = practical.pilots as any;
@@ -857,7 +865,8 @@ const handlePracticalStatusAction = async (body: any, authHeader: string | null)
       await discordApi(`/channels/${channelId}/messages`, {
         method: "POST",
         body: JSON.stringify({
-          content: `🎉 Congratulations <@${discordUserId}>! You passed your practical.\nPlease read the Pilot Guide here: <#1428000030521823293>.`,
+          content: `🎉 Congratulations <@${discordUserId}>! You passed your practical.
+Please read the Pilot Guide here: <#1428000030521823293>.`,
         }),
       }).catch(() => null);
 
@@ -869,7 +878,7 @@ const handlePracticalStatusAction = async (body: any, authHeader: string | null)
       }
     }
 
-    return Response.json({ ok: true, action: "pass_notification_sent", adminUserId });
+    return { action: "pass_notification_sent", practical, discordUserId, channelId };
   }
 
   const nextAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -890,7 +899,65 @@ const handlePracticalStatusAction = async (body: any, authHeader: string | null)
     }).catch(() => null);
   }
 
-  return Response.json({ ok: true, action: "fail_retest_assigned", adminUserId });
+  return { action: "fail_retest_assigned", practical, discordUserId, channelId };
+};
+
+const handlePracticalStatusAction = async (body: any, authHeader: string | null) => {
+  const adminUserId = await verifyAdminFromAuthHeader(authHeader);
+  if (!adminUserId) return new Response("Unauthorized", { status: 401 });
+
+  const practicalId = String(body?.practicalId || "");
+  const status = String(body?.status || "");
+  if (!practicalId || !["passed", "failed"].includes(status)) {
+    return new Response("Invalid practical payload", { status: 400 });
+  }
+
+  try {
+    const result = await applyPracticalStatus(practicalId, status as "passed" | "failed");
+    return Response.json({ ok: true, action: result.action, adminUserId });
+  } catch (error: any) {
+    const message = error?.message || "Could not update practical status";
+    if (message === "Practical not found") return new Response(message, { status: 404 });
+    return new Response(message, { status: 500 });
+  }
+};
+
+const handlePracticalReviewButton = async (body: any, customId: string) => {
+  const memberRoles = body.member?.roles || [];
+  if (!memberRoles.includes(RECRUITMENT_PRACTICAL_REVIEWER_ROLE_ID)) {
+    return Response.json({ type: 4, data: { content: "You are not allowed to review practicals.", flags: 64 } });
+  }
+
+  const [, status, practicalId] = customId.split(":");
+  if (!practicalId || !["passed", "failed"].includes(status)) {
+    return Response.json({ type: 4, data: { content: "Invalid practical review action.", flags: 64 } });
+  }
+
+  try {
+    const result = await applyPracticalStatus(practicalId, status as "passed" | "failed");
+    const color = status === "passed" ? COLORS.GREEN : COLORS.RED;
+    const outcome = status === "passed" ? "PASSED" : "FAILED";
+
+    return Response.json({
+      type: 7,
+      data: {
+        embeds: [{
+          title: "AFLV | Practical Review",
+          color,
+          description: `Practical review complete.
+**Result:** ${outcome}`,
+          fields: [
+            { name: "Pilot", value: result.discordUserId ? `<@${result.discordUserId}>` : String((result.practical as any)?.pilots?.full_name || "Unknown"), inline: true },
+            { name: "Practical ID", value: practicalId, inline: false },
+          ],
+          timestamp: new Date().toISOString(),
+        }],
+        components: [],
+      },
+    });
+  } catch (error: any) {
+    return Response.json({ type: 4, data: { content: error?.message || "Could not update practical status.", flags: 64 } });
+  }
 };
 
 const sendInteractionFollowup = async (applicationId: string, interactionToken: string, content: string) => {
@@ -1156,27 +1223,54 @@ const handleRecruitmentPracticalReady = async (body: any, token: string) => {
     return Response.json({ type: 4, data: { content: error.message || "Could not assign practical.", flags: 64 } });
   }
 
-  const pid = data?.pid || "AFLV";
+  const pid = String(data?.pid || "AFLV");
+  const shortPid = pid.replace(/^AFLV/i, "") || pid;
+  const practicalId = String(data?.practical_id || "");
+
   return Response.json({
     type: 4,
     data: {
       flags: 64,
-      content:
-`✅ Practical assigned. Please wait until admin updates your practical status.
-
-# AFLV | Practical
-1.Spawn at any gate at UUBW.
-2.Taxi to RWY30
-3.Depart Straight & Transition to UUDD Pattern for RWY32L
-4.Touch and go. with proper unicom use.
-5.Transistion to UUDD RWY32R Downwind.
-6.Touch and go. Departure to Northwest
-7.Proceed Direct "MR" Moscow Shr. VOR.
-8.Transition to pattern for LANDING at ANY RWY at UUEE
-9.Land. Park. Exit.
-
-**ATYP - C172.
-CALLSIGN - Aeroflot ${pid}CR**`,
+      embeds: [{
+        title: "AFLV | Practical Assigned",
+        color: COLORS.BLUE,
+        description: "Your practical is assigned. Complete the task and wait for examiner review.",
+        fields: [
+          {
+            name: "Practical Tasks",
+            value: [
+              "1. Spawn at any gate at UUBW.",
+              "2. Taxi to RWY 30.",
+              "3. Depart straight and transition to UUDD pattern for RWY 32L.",
+              "4. Touch and go with proper UNICOM use.",
+              "5. Transition to UUDD RWY 32R downwind.",
+              "6. Touch and go, then depart to the northwest.",
+              "7. Proceed direct \"MR\" Moscow Shr. VOR.",
+              "8. Transition to pattern for landing at any runway at UUEE.",
+              "9. Land, park, and exit.",
+            ].join("\n"),
+          },
+          {
+            name: "Aircraft / Callsign",
+            value: `ATYP - C172\nCALLSIGN - Aeroflot ${shortPid}CR`,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      }],
+      components: practicalId ? [{
+        type: 1,
+        components: [{
+          type: 2,
+          style: 3,
+          custom_id: `${RECRUITMENT_PRACTICAL_REVIEW_PREFIX}passed:${practicalId}`,
+          label: "Pass",
+        }, {
+          type: 2,
+          style: 4,
+          custom_id: `${RECRUITMENT_PRACTICAL_REVIEW_PREFIX}failed:${practicalId}`,
+          label: "Fail",
+        }],
+      }] : [],
     },
   });
 };
@@ -1253,6 +1347,7 @@ serve(async (req) => {
       if (customId === RECRUITMENT_BUTTON_CUSTOM_ID) return handleRecruitmentButton(body);
       if (customId.startsWith(RECRUITMENT_CALLSIGN_BUTTON_PREFIX)) return handleOpenCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_BUTTON_PREFIX.length));
       if (customId.startsWith(RECRUITMENT_PRACTICAL_READY_PREFIX)) return handleRecruitmentPracticalReady(body, customId.slice(RECRUITMENT_PRACTICAL_READY_PREFIX.length));
+      if (customId.startsWith(RECRUITMENT_PRACTICAL_REVIEW_PREFIX)) return handlePracticalReviewButton(body, customId);
     } catch (error: any) {
       return Response.json({ type: 4, data: { content: error?.message || "Action failed", flags: 64 } });
     }
