@@ -965,6 +965,44 @@ const handleOpenCallsignModal = async (body: any, token: string) => {
     return Response.json({ type: 4, data: { content: "Missing Discord user context.", flags: 64 } });
   }
 
+  const { data: session, error } = await supabase
+    .from("recruitment_exam_sessions")
+    .select("passed, completed_at")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (error || !session) {
+    return Response.json({ type: 4, data: { content: "Recruitment session not found. Click Fly High again.", flags: 64 } });
+  }
+
+  if (session.passed !== true) {
+    if (session.completed_at && session.passed === false) {
+      const completedAt = new Date(session.completed_at).getTime();
+      const nextEligibleAt = completedAt + (24 * 60 * 60 * 1000);
+      const remainingMs = nextEligibleAt - Date.now();
+      if (remainingMs > 0) {
+        const totalMinutes = Math.ceil(remainingMs / (60 * 1000));
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        return Response.json({
+          type: 4,
+          data: {
+            content: `You failed the written test. Please wait 24 hours before retest. Remaining: ${hours}h ${minutes}m.`,
+            flags: 64,
+          },
+        });
+      }
+    }
+
+    return Response.json({
+      type: 4,
+      data: {
+        content: "Please complete and pass the written test first.",
+        flags: 64,
+      },
+    });
+  }
+
   return Response.json({
     type: 9,
     data: {
