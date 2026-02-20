@@ -821,14 +821,6 @@ function PracticalsTab() {
     if (recruitmentPracticalSetting) setRecruitmentPracticalTarget(recruitmentPracticalSetting);
   }, [recruitmentPracticalSetting]);
 
-  const { data: aircraft } = useQuery({
-    queryKey: ["aircraft-list"],
-    queryFn: async () => {
-      const { data } = await supabase.from("aircraft").select("*").order("name");
-      return data || [];
-    },
-  });
-
   const assignMutation = useMutation({
     mutationFn: async () => {
       if (!assignForm.pilot_id) throw new Error("Select pilot");

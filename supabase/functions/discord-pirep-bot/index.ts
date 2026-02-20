@@ -19,6 +19,7 @@ const RECRUITMENT_BUTTON_CUSTOM_ID = "recruitment_fly_high";
 const RECRUITMENT_CALLSIGN_BUTTON_PREFIX = "recruitment_set_callsign:";
 const RECRUITMENT_CALLSIGN_MODAL_PREFIX = "recruitment_callsign_modal:";
 const RECRUITMENT_PRACTICAL_READY_PREFIX = "recruitment_practical_ready:";
+const RECRUITMENT_PRACTICAL_CONFIRM_PREFIX = "recruitment_practical_confirm:";
 const RECRUITMENT_PRACTICAL_REVIEW_PREFIX = "recruitment_practical_review:";
 const RECRUITMENT_PRACTICAL_REVIEWER_ROLE_ID = "1427942885004808263";
 const RECRUITMENT_STAFF_ROLE_ID = "1427942885004808263";
@@ -1129,6 +1130,16 @@ const handleOpenCallsignModal = async (body: any, token: string) => {
           required: true,
           placeholder: "AFLV123",
         }],
+      }, {
+        type: 1,
+        components: [{
+          type: 4,
+          custom_id: "contact_email",
+          label: "Registration Email (if not using Discord login)",
+          style: 1,
+          required: false,
+          placeholder: "name@example.com",
+        }],
       }],
     },
   });
@@ -1203,8 +1214,26 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
         components: [{
           type: 2,
           style: 1,
-          custom_id: `${RECRUITMENT_PRACTICAL_READY_PREFIX}${token}`,
+          custom_id: `${RECRUITMENT_PRACTICAL_CONFIRM_PREFIX}${token}`,
           label: "I have registered, continue",
+        }],
+      }],
+    },
+  });
+};
+
+const handleRecruitmentPracticalConfirm = async (_body: any, token: string) => {
+  return Response.json({
+    type: 4,
+    data: {
+      content: "Please confirm you are fully ready for practical assignment.",
+      components: [{
+        type: 1,
+        components: [{
+          type: 2,
+          style: 3,
+          custom_id: `${RECRUITMENT_PRACTICAL_READY_PREFIX}${token}`,
+          label: "Yes, I am ready for practical",
         }],
       }],
     },
@@ -1229,7 +1258,7 @@ const handleRecruitmentPracticalReady = async (body: any, token: string) => {
     return Response.json({
       type: 4,
       data: {
-        content: "You still need to register on Crew Center first. Use Discord login at https://crew-aflv.vercel.app/ and click again.",
+        content: "You still need to register on Crew Center first. Register with Discord OR with your email used in the callsign form at https://crew-aflv.vercel.app/ then click again.",
         flags: 64,
       },
     });
@@ -1400,6 +1429,7 @@ serve(async (req) => {
       if (customId.startsWith("challenge_accept:")) return handleAcceptChallengeButton(body, customId.slice("challenge_accept:".length));
       if (customId === RECRUITMENT_BUTTON_CUSTOM_ID) return handleRecruitmentButton(body);
       if (customId.startsWith(RECRUITMENT_CALLSIGN_BUTTON_PREFIX)) return handleOpenCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_BUTTON_PREFIX.length));
+      if (customId.startsWith(RECRUITMENT_PRACTICAL_CONFIRM_PREFIX)) return handleRecruitmentPracticalConfirm(body, customId.slice(RECRUITMENT_PRACTICAL_CONFIRM_PREFIX.length));
       if (customId.startsWith(RECRUITMENT_PRACTICAL_READY_PREFIX)) return handleRecruitmentPracticalReady(body, customId.slice(RECRUITMENT_PRACTICAL_READY_PREFIX.length));
       if (customId.startsWith(RECRUITMENT_PRACTICAL_REVIEW_PREFIX)) return handlePracticalReviewButton(body, customId);
     } catch (error: any) {
