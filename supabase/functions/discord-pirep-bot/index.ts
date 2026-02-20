@@ -18,6 +18,7 @@ const RECRUITMENTS_CATEGORY_ID = "1426656419758870693";
 const RECRUITMENT_BUTTON_CUSTOM_ID = "recruitment_fly_high";
 const RECRUITMENT_CALLSIGN_BUTTON_PREFIX = "recruitment_set_callsign:";
 const RECRUITMENT_CALLSIGN_MODAL_PREFIX = "recruitment_callsign_modal:";
+const RECRUITMENT_PRACTICAL_READY_PREFIX = "recruitment_practical_ready:";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
@@ -739,11 +740,11 @@ const createRecruitmentChannel = async (guildId: string, discordUserId: string, 
   return payload;
 };
 
-const getLatestRecruitmentCooldown = async (applicationId: string) => {
+const getLatestRecruitmentCooldown = async (discordUserId: string) => {
   const { data, error } = await supabase
     .from("recruitment_exam_sessions")
     .select("completed_at, passed")
-    .eq("application_id", applicationId)
+    .eq("discord_user_id", discordUserId)
     .eq("passed", false)
     .not("completed_at", "is", null)
     .order("completed_at", { ascending: false })
@@ -885,15 +886,11 @@ const processRecruitmentButton = async (body: any) => {
     return "Missing Discord user/guild context.";
   }
 
-  const authUserId = await resolveAuthUserFromDiscord(discordUserId);
-  if (!authUserId) {
-    return "Please sign in on Crew Center with Discord first, then click **Fly High** again.";
-  }
+  const authUserId = await resolveAuthUserFromDiscord(discordUserId).catch(() => null);
 
   const examId = await getRecruitmentExamId();
-  const applicationId = await ensureApplication(authUserId, discordUserId, username);
 
-  const cooldownMinutes = await getLatestRecruitmentCooldown(applicationId);
+  const cooldownMinutes = await getLatestRecruitmentCooldown(discordUserId);
   if (cooldownMinutes) {
     const hours = Math.floor(cooldownMinutes / 60);
     const minutes = cooldownMinutes % 60;
@@ -903,7 +900,7 @@ const processRecruitmentButton = async (body: any) => {
   const token = crypto.randomUUID();
 
   const { error: sessionError } = await supabase.from("recruitment_exam_sessions").insert({
-    application_id: applicationId,
+    application_id: null,
     exam_id: examId,
     auth_user_id: authUserId,
     discord_user_id: discordUserId,
@@ -917,7 +914,7 @@ const processRecruitmentButton = async (body: any) => {
   await discordApi(`/channels/${channel.id}/messages`, {
     method: "POST",
     body: JSON.stringify({
-      content: `Welcome <@${discordUserId}>!\nPlease complete your entrance written exam:\n${examUrl}\n\nAfter you pass, click **Set Preferred Callsign** below and enter it in format AFLVXXX.`,
+      content: `Welcome <@${discordUserId}>!\nPlease complete your entrance written exam:\n${examUrl}\n\nAfter you pass, click **Set Preferred Callsign** below.`,
       components: [{
         type: 1,
         components: [{
@@ -995,6 +992,16 @@ const handleOpenCallsignModal = async (body: any, token: string) => {
           required: true,
           placeholder: "AFLV123",
         }],
+      }, {
+        type: 1,
+        components: [{
+          type: 4,
+          custom_id: "contact_email",
+          label: "Email (only if you won't register via Discord)",
+          style: 1,
+          required: false,
+          placeholder: "name@example.com",
+        }],
       }],
     },
   });
@@ -1023,27 +1030,114 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
     return Response.json({ type: 4, data: { content: "Invalid format. Use AFLVXXX (letters/numbers).", flags: 64 } });
   }
 
+  const email = readModalInput(body, "contact_email").trim();
+
   const { data, error } = await supabase.rpc("complete_recruitment_with_pid", {
     p_token: token,
     p_pid: preferredPid,
+    p_email: email || null,
   });
 
   if (error) {
     return Response.json({ type: 4, data: { content: error.message || "Could not set callsign.", flags: 64 } });
   }
 
-  if (guildId) {
+  if (data?.approved && guildId) {
     await discordApi(`/guilds/${guildId}/members/${discordUserId}`, {
       method: "PATCH",
       body: JSON.stringify({ nick: `[${preferredPid}] ${username}`.slice(0, 32) }),
     }).catch(() => null);
   }
 
-  const message = data?.approved
-    ? `✅ Approved! Callsign **${preferredPid}** assigned and your application is approved.`
-    : `⚠️ ${data?.message || "Could not complete approval."}`;
+  if (data?.approved) {
+    return Response.json({
+      type: 4,
+      data: {
+        content: `✅ Approved! Callsign **${preferredPid}** assigned. Click below when you are ready for practical.`,
+        flags: 64,
+        components: [{
+          type: 1,
+          components: [{
+            type: 2,
+            style: 3,
+            custom_id: `${RECRUITMENT_PRACTICAL_READY_PREFIX}${token}`,
+            label: "Yes, I am ready for practical",
+          }],
+        }],
+      },
+    });
+  }
 
-  return Response.json({ type: 4, data: { content: message, flags: 64 } });
+  return Response.json({
+    type: 4,
+    data: {
+      content: `📝 Callsign saved as **${preferredPid}**. Now register/login at https://crew-aflv.vercel.app/ (prefer Discord login). Then click the button below to continue.`,
+      flags: 64,
+      components: [{
+        type: 1,
+        components: [{
+          type: 2,
+          style: 1,
+          custom_id: `${RECRUITMENT_PRACTICAL_READY_PREFIX}${token}`,
+          label: "I have registered, continue",
+        }],
+      }],
+    },
+  });
+};
+
+const handleRecruitmentPracticalReady = async (body: any, token: string) => {
+  const discordUserId = body.member?.user?.id || body.user?.id;
+  if (!discordUserId) {
+    return Response.json({ type: 4, data: { content: "Missing Discord user context.", flags: 64 } });
+  }
+
+  const { data: finalState, error: finalError } = await supabase.rpc("finalize_recruitment_registration", {
+    p_token: token,
+  });
+
+  if (finalError) {
+    return Response.json({ type: 4, data: { content: finalError.message || "Could not finalize recruitment registration.", flags: 64 } });
+  }
+
+  if (!finalState?.approved) {
+    return Response.json({
+      type: 4,
+      data: {
+        content: "You still need to register on Crew Center first. Use Discord login at https://crew-aflv.vercel.app/ and click again.",
+        flags: 64,
+      },
+    });
+  }
+
+  const { data, error } = await supabase.rpc("assign_recruitment_practical", { p_token: token });
+  if (error) {
+    return Response.json({ type: 4, data: { content: error.message || "Could not assign practical.", flags: 64 } });
+  }
+
+  const pid = data?.pid || "AFLV";
+  return Response.json({
+    type: 4,
+    data: {
+      flags: 64,
+      content:
+`✅ Practical assigned. Please wait until admin updates your practical status.
+
+# AFLV | Practical
+1.Spawn at any gate at UUBW.
+2.Taxi to RWY30
+3.Depart Straight & Transition to UUDD Pattern for RWY32L
+4.Touch and go. with proper unicom use.
+5.Transistion to UUDD RWY32R Downwind.
+6.Touch and go. Departure to Northwest
+7.Proceed Direct "MR" Moscow Shr. VOR.
+8.Transition to pattern for LANDING at ANY RWY at UUEE
+9.Land. Park. Exit.
+
+**ATYP - C172.
+CALLSIGN - Aeroflot ${pid}CR**`,
+    },
+  });
 };
 
 serve(async (req) => {
@@ -1118,6 +1212,7 @@ serve(async (req) => {
     if (customId.startsWith("challenge_accept:")) return handleAcceptChallengeButton(body, customId.slice("challenge_accept:".length));
     if (customId === RECRUITMENT_BUTTON_CUSTOM_ID) return handleRecruitmentButton(body);
     if (customId.startsWith(RECRUITMENT_CALLSIGN_BUTTON_PREFIX)) return handleOpenCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_BUTTON_PREFIX.length));
+    if (customId.startsWith(RECRUITMENT_PRACTICAL_READY_PREFIX)) return handleRecruitmentPracticalReady(body, customId.slice(RECRUITMENT_PRACTICAL_READY_PREFIX.length));
     return embedResponse({ title: "Action Failed", description: "Unknown button action.", color: COLORS.RED });
   }
 

@@ -1030,10 +1030,13 @@ export type Database = {
       }
       recruitment_exam_sessions: {
         Row: {
-          application_id: string
+          application_id: string | null
           auth_user_id: string | null
           completed_at: string | null
           discord_user_id: string | null
+          pending_email: string | null
+          preferred_pid: string | null
+          practical_assigned_at: string | null
           created_at: string
           recruitment_channel_id: string | null
           exam_id: string
@@ -1043,10 +1046,13 @@ export type Database = {
           token: string
         }
         Insert: {
-          application_id: string
+          application_id?: string | null
           auth_user_id?: string | null
           completed_at?: string | null
           discord_user_id?: string | null
+          pending_email?: string | null
+          preferred_pid?: string | null
+          practical_assigned_at?: string | null
           created_at?: string
           recruitment_channel_id?: string | null
           exam_id: string
@@ -1056,10 +1062,13 @@ export type Database = {
           token: string
         }
         Update: {
-          application_id?: string
+          application_id?: string | null
           auth_user_id?: string | null
           completed_at?: string | null
           discord_user_id?: string | null
+          pending_email?: string | null
+          preferred_pid?: string | null
+          practical_assigned_at?: string | null
           created_at?: string
           recruitment_channel_id?: string | null
           exam_id?: string
@@ -1479,7 +1488,15 @@ export type Database = {
         }
       }
       complete_recruitment_with_pid: {
-        Args: { p_pid: string; p_token: string }
+        Args: { p_email?: string | null; p_pid: string; p_token: string }
+        Returns: Json
+      }
+      finalize_recruitment_registration: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      assign_recruitment_practical: {
+        Args: { p_token: string }
         Returns: Json
       }
       submit_recruitment_exam: {
