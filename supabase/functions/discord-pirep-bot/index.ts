@@ -748,24 +748,26 @@ const createRecruitmentChannel = async (guildId: string, discordUserId: string, 
   return payload;
 };
 
-const handleRecruitmentButton = async (body: any) => {
+const sendInteractionFollowup = async (applicationId: string, interactionToken: string, content: string) => {
+  await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, flags: 64 }),
+  });
+};
+
+const processRecruitmentButton = async (body: any) => {
   const discordUserId = body.member?.user?.id;
   const username = body.member?.user?.username || "candidate";
   const guildId = body.guild_id;
 
   if (!discordUserId || !guildId) {
-    return Response.json({ type: 4, data: { content: "Missing Discord user/guild context.", flags: 64 } });
+    return "Missing Discord user/guild context.";
   }
 
   const authUserId = await resolveAuthUserFromDiscord(discordUserId);
   if (!authUserId) {
-    return Response.json({
-      type: 4,
-      data: {
-        content: "Please sign in on Crew Center with Discord first, then click **Fly High** again.",
-        flags: 64,
-      },
-    });
+    return "Please sign in on Crew Center with Discord first, then click **Fly High** again.";
   }
 
   const examId = await getRecruitmentExamId();
@@ -798,9 +800,29 @@ const handleRecruitmentButton = async (body: any) => {
     }),
   });
 
+  return `Recruitment channel created: <#${channel.id}>`;
+};
+
+const handleRecruitmentButton = (body: any) => {
+  const interactionToken = String(body?.token || "");
+  const applicationId = String(body?.application_id || "");
+
+  const task = (async () => {
+    if (!interactionToken || !applicationId) return;
+
+    try {
+      const resultMessage = await processRecruitmentButton(body);
+      await sendInteractionFollowup(applicationId, interactionToken, resultMessage);
+    } catch (error: any) {
+      await sendInteractionFollowup(applicationId, interactionToken, error?.message || "Recruitment flow failed");
+    }
+  })();
+
+  (globalThis as any).EdgeRuntime?.waitUntil?.(task);
+
   return Response.json({
-    type: 4,
-    data: { content: `Recruitment channel created: <#${channel.id}>`, flags: 64 },
+    type: 5,
+    data: { flags: 64 },
   });
 };
 
