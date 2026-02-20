@@ -88,25 +88,6 @@ function CoursesTab() {
     onError: () => toast.error("Failed to save course"),
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, question, options, explanation }: any) => {
-      const validOptions = options.filter((o: any) => o.text.trim());
-      if (validOptions.length < 2) throw new Error("At least 2 options required");
-      if (!validOptions.some((o: any) => o.is_correct)) throw new Error("Mark a correct answer");
-      const { error } = await supabase.from("academy_exam_questions").update({
-        question,
-        options: validOptions,
-        explanation: explanation || null,
-      }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-exam-questions", examId] });
-      toast.success("Question updated");
-      setEditingQuestionId(null);
-    },
-    onError: (e: any) => toast.error(e.message || "Failed to update question"),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -468,25 +449,6 @@ function ExamsTab() {
     onError: () => toast.error("Failed to create exam"),
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, question, options, explanation }: any) => {
-      const validOptions = options.filter((o: any) => o.text.trim());
-      if (validOptions.length < 2) throw new Error("At least 2 options required");
-      if (!validOptions.some((o: any) => o.is_correct)) throw new Error("Mark a correct answer");
-      const { error } = await supabase.from("academy_exam_questions").update({
-        question,
-        options: validOptions,
-        explanation: explanation || null,
-      }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-exam-questions", examId] });
-      toast.success("Question updated");
-      setEditingQuestionId(null);
-    },
-    onError: (e: any) => toast.error(e.message || "Failed to update question"),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -678,7 +640,8 @@ function ExamQuestionsManager({ examId }: { examId: string }) {
     onError: (e) => toast.error(e.message || "Failed to add question"),
   });
 
-  const updateMutation = useMutation({
+
+  const updateQuestionMutation = useMutation({
     mutationFn: async ({ id, question, options, explanation }: any) => {
       const validOptions = options.filter((o: any) => o.text.trim());
       if (validOptions.length < 2) throw new Error("At least 2 options required");
@@ -697,6 +660,7 @@ function ExamQuestionsManager({ examId }: { examId: string }) {
     },
     onError: (e: any) => toast.error(e.message || "Failed to update question"),
   });
+
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -755,8 +719,8 @@ function ExamQuestionsManager({ examId }: { examId: string }) {
               <QuestionEditForm
                 initial={q}
                 onCancel={() => setEditingQuestionId(null)}
-                onSave={(payload) => updateMutation.mutate({ id: q.id, ...payload })}
-                isSaving={updateMutation.isPending}
+                onSave={(payload) => updateQuestionMutation.mutate({ id: q.id, ...payload })}
+                isSaving={updateQuestionMutation.isPending}
               />
             )}
           </div>
@@ -866,25 +830,6 @@ function PracticalsTab() {
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, question, options, explanation }: any) => {
-      const validOptions = options.filter((o: any) => o.text.trim());
-      if (validOptions.length < 2) throw new Error("At least 2 options required");
-      if (!validOptions.some((o: any) => o.is_correct)) throw new Error("Mark a correct answer");
-      const { error } = await supabase.from("academy_exam_questions").update({
-        question,
-        options: validOptions,
-        explanation: explanation || null,
-      }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-exam-questions", examId] });
-      toast.success("Question updated");
-      setEditingQuestionId(null);
-    },
-    onError: (e: any) => toast.error(e.message || "Failed to update question"),
-  });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
