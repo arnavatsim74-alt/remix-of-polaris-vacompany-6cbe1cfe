@@ -969,10 +969,12 @@ const sendInteractionFollowup = async (
   content: string,
   ephemeral = false,
 ) => {
+  const payload = { content, ...(ephemeral ? { flags: 64 } : {}) };
+
   const response = await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content, ...(ephemeral ? { flags: 64 } : {}) }),
+    body: JSON.stringify(payload),
   });
 
   if (response.ok) return;
@@ -980,7 +982,27 @@ const sendInteractionFollowup = async (
   await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content, ...(ephemeral ? { flags: 64 } : {}) }),
+    body: JSON.stringify(payload),
+  });
+};
+
+const sendInteractionFollowupData = async (
+  applicationId: string,
+  interactionToken: string,
+  data: Record<string, any>,
+) => {
+  const response = await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  if (response.ok) return;
+
+  await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
   });
 };
 
@@ -1166,17 +1188,17 @@ const readModalInput = (body: any, customId: string) => {
   return "";
 };
 
-const handleSubmitCallsignModal = async (body: any, token: string) => {
+const processSubmitCallsignModal = async (body: any, token: string) => {
   const discordUserId = body.member?.user?.id || body.user?.id;
   const username = body.member?.user?.username || body.user?.username || "User";
   const guildId = body.guild_id;
   if (!discordUserId) {
-    return Response.json({ type: 4, data: { content: "Missing Discord user context.", flags: 64 } });
+    return { content: "Missing Discord user context.", flags: 64 };
   }
 
   const preferredPid = readModalInput(body, "preferred_callsign").toUpperCase().trim();
   if (!/^AFLV[A-Z0-9]{3}$/.test(preferredPid)) {
-    return Response.json({ type: 4, data: { content: "Invalid format. Use AFLVXXX (letters/numbers).", flags: 64 } });
+    return { content: "Invalid format. Use AFLVXXX (letters/numbers).", flags: 64 };
   }
 
   const email = readModalInput(body, "contact_email").trim();
@@ -1188,7 +1210,7 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
   });
 
   if (error) {
-    return Response.json({ type: 4, data: { content: error.message || "Could not set callsign.", flags: 64 } });
+    return { content: error.message || "Could not set callsign.", flags: 64 };
   }
 
   if (data?.approved && guildId) {
@@ -1201,36 +1223,57 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
   }
 
   if (data?.approved) {
-    return Response.json({
-      type: 4,
-      data: {
-        content: `✅ Approved! Callsign **${preferredPid}** assigned. Click below when you are ready for practical.`,
-        components: [{
-          type: 1,
-          components: [{
-            type: 2,
-            style: 3,
-            custom_id: `${RECRUITMENT_PRACTICAL_READY_PREFIX}${token}`,
-            label: "Yes, I am ready for practical",
-          }],
-        }],
-      },
-    });
-  }
-
-  return Response.json({
-    type: 4,
-    data: {
-      content: `📝 Callsign saved as **${preferredPid}**. Now register/login at https://crew-aflv.vercel.app/ (prefer Discord login). Then click the button below to continue.`,
+    return {
+      content: `✅ Approved! Callsign **${preferredPid}** assigned. Click below when you are ready for practical.`,
       components: [{
         type: 1,
         components: [{
           type: 2,
-          style: 1,
-          custom_id: `${RECRUITMENT_PRACTICAL_CONFIRM_PREFIX}${token}`,
-          label: "I have registered, continue",
+          style: 3,
+          custom_id: `${RECRUITMENT_PRACTICAL_READY_PREFIX}${token}`,
+          label: "Yes, I am ready for practical",
         }],
       }],
+      flags: 64,
+    };
+  }
+
+  return {
+    content: `📝 Callsign saved as **${preferredPid}**. Now register/login at https://crew-aflv.vercel.app/ (prefer Discord login). Then click the button below to continue.`,
+    components: [{
+      type: 1,
+      components: [{
+        type: 2,
+        style: 1,
+        custom_id: `${RECRUITMENT_PRACTICAL_CONFIRM_PREFIX}${token}`,
+        label: "I have registered, continue",
+      }],
+    }],
+    flags: 64,
+  };
+};
+
+const handleSubmitCallsignModal = (body: any, token: string) => {
+  const interactionToken = String(body?.token || "");
+  const applicationId = String(body?.application_id || "");
+
+  const task = (async () => {
+    if (!interactionToken || !applicationId) return;
+
+    try {
+      const payload = await processSubmitCallsignModal(body, token);
+      await sendInteractionFollowupData(applicationId, interactionToken, payload);
+    } catch (error: any) {
+      await sendInteractionFollowup(applicationId, interactionToken, error?.message || "Modal action failed", true);
+    }
+  })();
+
+  (globalThis as any).EdgeRuntime?.waitUntil?.(task);
+
+  return Response.json({
+    type: 5,
+    data: {
+      flags: 64,
     },
   });
 };
