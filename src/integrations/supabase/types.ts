@@ -56,7 +56,7 @@ export type Database = {
       academy_enrollments: {
         Row: {
           completed_at: string | null
-          course_id: string
+          course_id: string | null
           enrolled_at: string | null
           id: string
           pilot_id: string
@@ -64,7 +64,7 @@ export type Database = {
         }
         Insert: {
           completed_at?: string | null
-          course_id: string
+          course_id?: string | null
           enrolled_at?: string | null
           id?: string
           pilot_id: string
@@ -72,7 +72,7 @@ export type Database = {
         }
         Update: {
           completed_at?: string | null
-          course_id?: string
+          course_id?: string | null
           enrolled_at?: string | null
           id?: string
           pilot_id?: string
@@ -183,7 +183,7 @@ export type Database = {
       }
       academy_exams: {
         Row: {
-          course_id: string
+          course_id: string | null
           created_at: string | null
           description: string | null
           id: string
@@ -194,7 +194,7 @@ export type Database = {
           title: string
         }
         Insert: {
-          course_id: string
+          course_id?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
@@ -205,7 +205,7 @@ export type Database = {
           title: string
         }
         Update: {
-          course_id?: string
+          course_id?: string | null
           created_at?: string | null
           description?: string | null
           id?: string

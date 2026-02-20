@@ -25,6 +25,19 @@ export default function Academy() {
     },
   });
 
+  const { data: standaloneExams } = useQuery({
+    queryKey: ["academy-standalone-exams"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("academy_exams")
+        .select("id, title, description, passing_score, max_attempts")
+        .eq("is_published", true)
+        .is("course_id", null)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+  });
+
   const { data: enrollments } = useQuery({
     queryKey: ["academy-enrollments", pilot?.id],
     queryFn: async () => {
@@ -123,6 +136,35 @@ export default function Academy() {
                 </Card>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Standalone Exams */}
+      {standaloneExams && standaloneExams.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Standalone Exams</h2>
+          <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
+            {standaloneExams.map(exam => (
+              <Card key={exam.id} className="overflow-hidden">
+                <CardHeader className="pt-4 px-4 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">Exam</Badge>
+                  </div>
+                  <CardTitle className="text-sm">{exam.title}</CardTitle>
+                  <CardDescription className="line-clamp-2 text-xs">{exam.description || "Standalone academy exam"}</CardDescription>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {exam.passing_score}% to pass · {exam.max_attempts} attempts
+                  </div>
+                  <Button className="w-full" size="sm" onClick={() => navigate(`/academy/exam/${exam.id}`)}>
+                    Take Exam
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       )}
