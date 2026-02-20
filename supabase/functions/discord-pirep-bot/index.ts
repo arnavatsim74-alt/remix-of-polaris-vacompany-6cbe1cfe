@@ -965,16 +965,6 @@ const handleOpenCallsignModal = async (body: any, token: string) => {
     return Response.json({ type: 4, data: { content: "Missing Discord user context.", flags: 64 } });
   }
 
-  const { data: session } = await supabase
-    .from("recruitment_exam_sessions")
-    .select("passed")
-    .eq("token", token)
-    .maybeSingle();
-
-  if (!session?.passed) {
-    return Response.json({ type: 4, data: { content: "Please pass the entrance exam first, then set your callsign.", flags: 64 } });
-  }
-
   return Response.json({
     type: 9,
     data: {
@@ -1208,18 +1198,26 @@ serve(async (req) => {
 
   if (body.type === 3) {
     const customId = String(body.data?.custom_id || "");
-    if (customId.startsWith("event_join:")) return handleJoinEventButton(body, customId.slice("event_join:".length));
-    if (customId.startsWith("challenge_accept:")) return handleAcceptChallengeButton(body, customId.slice("challenge_accept:".length));
-    if (customId === RECRUITMENT_BUTTON_CUSTOM_ID) return handleRecruitmentButton(body);
-    if (customId.startsWith(RECRUITMENT_CALLSIGN_BUTTON_PREFIX)) return handleOpenCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_BUTTON_PREFIX.length));
-    if (customId.startsWith(RECRUITMENT_PRACTICAL_READY_PREFIX)) return handleRecruitmentPracticalReady(body, customId.slice(RECRUITMENT_PRACTICAL_READY_PREFIX.length));
+    try {
+      if (customId.startsWith("event_join:")) return handleJoinEventButton(body, customId.slice("event_join:".length));
+      if (customId.startsWith("challenge_accept:")) return handleAcceptChallengeButton(body, customId.slice("challenge_accept:".length));
+      if (customId === RECRUITMENT_BUTTON_CUSTOM_ID) return handleRecruitmentButton(body);
+      if (customId.startsWith(RECRUITMENT_CALLSIGN_BUTTON_PREFIX)) return handleOpenCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_BUTTON_PREFIX.length));
+      if (customId.startsWith(RECRUITMENT_PRACTICAL_READY_PREFIX)) return handleRecruitmentPracticalReady(body, customId.slice(RECRUITMENT_PRACTICAL_READY_PREFIX.length));
+    } catch (error: any) {
+      return Response.json({ type: 4, data: { content: error?.message || "Action failed", flags: 64 } });
+    }
     return embedResponse({ title: "Action Failed", description: "Unknown button action.", color: COLORS.RED });
   }
 
   if (body.type === 5) {
     const customId = String(body.data?.custom_id || "");
-    if (customId.startsWith(RECRUITMENT_CALLSIGN_MODAL_PREFIX)) {
-      return handleSubmitCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_MODAL_PREFIX.length));
+    try {
+      if (customId.startsWith(RECRUITMENT_CALLSIGN_MODAL_PREFIX)) {
+        return handleSubmitCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_MODAL_PREFIX.length));
+      }
+    } catch (error: any) {
+      return Response.json({ type: 4, data: { content: error?.message || "Modal action failed", flags: 64 } });
     }
     return embedResponse({ title: "Action Failed", description: "Unknown modal action.", color: COLORS.RED });
   }
