@@ -775,7 +775,7 @@ const getLatestRecruitmentCooldown = async (discordUserId: string) => {
 };
 
 const getLatestRecruitmentSession = async (discordUserId: string) => {
-  const { data, error } = await supabase
+  const withMessage = await supabase
     .from("recruitment_exam_sessions")
     .select("id, completed_at, passed, recruitment_channel_id, exam_message_id")
     .eq("discord_user_id", discordUserId)
@@ -783,8 +783,19 @@ const getLatestRecruitmentSession = async (discordUserId: string) => {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw error;
-  return data || null;
+  if (!withMessage.error) return withMessage.data || null;
+
+  // Backward compatibility if newest migration not applied yet.
+  const fallback = await supabase
+    .from("recruitment_exam_sessions")
+    .select("id, completed_at, passed, recruitment_channel_id")
+    .eq("discord_user_id", discordUserId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (fallback.error) throw fallback.error;
+  return fallback.data ? { ...fallback.data, exam_message_id: null } : null;
 };
 
 const verifyAdminFromAuthHeader = async (authHeader: string | null) => {
@@ -932,7 +943,23 @@ const processRecruitmentButton = async (body: any) => {
     discord_user_id: discordUserId,
     token,
   });
-  if (sessionError) throw sessionError;
+  if (sessionError) {
+    // Compatibility if application_id is still NOT NULL in DB.
+    const message = String((sessionError as any)?.message || "").toLowerCase();
+    if (message.includes("application_id") && authUserId) {
+      const applicationId = await ensureApplication(authUserId, discordUserId, username);
+      const { error: retryError } = await supabase.from("recruitment_exam_sessions").insert({
+        application_id: applicationId,
+        exam_id: examId,
+        auth_user_id: authUserId,
+        discord_user_id: discordUserId,
+        token,
+      });
+      if (retryError) throw retryError;
+    } else {
+      throw sessionError;
+    }
+  }
 
   const channel = await createRecruitmentChannel(guildId, discordUserId, username);
   const examUrl = `${FRONTEND_URL.replace(/\/$/, "")}/academy/exam/${examId}?recruitmentToken=${encodeURIComponent(token)}`;
@@ -977,10 +1004,18 @@ const processRecruitmentButton = async (body: any) => {
 
   const examMessagePayload = await examMessageResponse.json().catch(() => ({}));
 
-  await supabase
+  const updateWithMessage = await supabase
     .from("recruitment_exam_sessions")
     .update({ recruitment_channel_id: channel.id, exam_message_id: examMessagePayload?.id || null })
     .eq("token", token);
+
+  if (updateWithMessage.error) {
+    // Backward compatibility if exam_message_id column is not present yet.
+    await supabase
+      .from("recruitment_exam_sessions")
+      .update({ recruitment_channel_id: channel.id })
+      .eq("token", token);
+  }
 
   return `Recruitment channel created: <#${channel.id}>`;
 };
