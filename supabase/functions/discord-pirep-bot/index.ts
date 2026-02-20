@@ -20,18 +20,6 @@ const RECRUITMENT_CALLSIGN_BUTTON_PREFIX = "recruitment_set_callsign:";
 const RECRUITMENT_CALLSIGN_MODAL_PREFIX = "recruitment_callsign_modal:";
 const RECRUITMENT_PRACTICAL_READY_PREFIX = "recruitment_practical_ready:";
 
-const RECRUITMENT_DEFAULT_PROFILE = {
-  experience_level: "Grade 2",
-  preferred_simulator: "No",
-  reason_for_joining: "Recruitment flow",
-  if_grade: "Grade 2",
-  is_ifatc: "No",
-  ifc_trust_level: "I don't know",
-  age_range: "13-16",
-  other_va_membership: "No",
-  hear_about_aflv: "Discord Recruitment",
-} as const;
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
 const COLORS = {
@@ -974,22 +962,6 @@ const processRecruitmentButton = async (body: any) => {
     method: "POST",
     body: JSON.stringify({
       content: `Welcome <@${discordUserId}>!\nPlease complete your entrance written exam:\n${examUrl}\n\nAfter you pass, click **Set Preferred Callsign** below.`,
-      embeds: [{
-        title: "Recruitment Profile (Pre-filled)",
-        color: COLORS.BLUE,
-        fields: [
-          { name: "Discord Username", value: username, inline: true },
-          { name: "Experience Level", value: RECRUITMENT_DEFAULT_PROFILE.experience_level, inline: true },
-          { name: "Preferred Simulator", value: RECRUITMENT_DEFAULT_PROFILE.preferred_simulator, inline: true },
-          { name: "IF Grade", value: RECRUITMENT_DEFAULT_PROFILE.if_grade, inline: true },
-          { name: "IFATC", value: RECRUITMENT_DEFAULT_PROFILE.is_ifatc, inline: true },
-          { name: "IFC Trust Level", value: RECRUITMENT_DEFAULT_PROFILE.ifc_trust_level, inline: true },
-          { name: "Age Range", value: RECRUITMENT_DEFAULT_PROFILE.age_range, inline: true },
-          { name: "Other VA/VO Membership", value: RECRUITMENT_DEFAULT_PROFILE.other_va_membership, inline: true },
-          { name: "Where heard about AFLV", value: RECRUITMENT_DEFAULT_PROFILE.hear_about_aflv, inline: true },
-          { name: "Reason for Joining", value: RECRUITMENT_DEFAULT_PROFILE.reason_for_joining, inline: false },
-        ],
-      }],
       components: [{
         type: 1,
         components: [{
@@ -1050,6 +1022,10 @@ const handleOpenCallsignModal = async (body: any, token: string) => {
     return Response.json({ type: 4, data: { content: "Missing Discord user context.", flags: 64 } });
   }
 
+  if (!token) {
+    return Response.json({ type: 4, data: { content: "Recruitment session not found. Please restart from Fly High.", flags: 64 } });
+  }
+
   return Response.json({
     type: 9,
     data: {
@@ -1066,16 +1042,6 @@ const handleOpenCallsignModal = async (body: any, token: string) => {
           max_length: 7,
           required: true,
           placeholder: "AFLV123",
-        }],
-      }, {
-        type: 1,
-        components: [{
-          type: 4,
-          custom_id: "contact_email",
-          label: "Email (only if you won't register via Discord)",
-          style: 1,
-          required: false,
-          placeholder: "name@example.com",
         }],
       }],
     },
