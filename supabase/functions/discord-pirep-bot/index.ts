@@ -1296,10 +1296,10 @@ const handleRecruitmentPracticalConfirm = async (_body: any, token: string) => {
   });
 };
 
-const handleRecruitmentPracticalReady = async (body: any, token: string) => {
+const processRecruitmentPracticalReady = async (body: any, token: string) => {
   const discordUserId = body.member?.user?.id || body.user?.id;
   if (!discordUserId) {
-    return Response.json({ type: 4, data: { content: "Missing Discord user context.", flags: 64 } });
+    return { content: "Missing Discord user context.", flags: 64, components: [] };
   }
 
   const { data: finalState, error: finalError } = await supabase.rpc("finalize_recruitment_registration", {
@@ -1307,17 +1307,15 @@ const handleRecruitmentPracticalReady = async (body: any, token: string) => {
   });
 
   if (finalError) {
-    return Response.json({ type: 4, data: { content: finalError.message || "Could not finalize recruitment registration.", flags: 64 } });
+    return { content: finalError.message || "Could not finalize recruitment registration.", flags: 64, components: [] };
   }
 
   if (!finalState?.approved) {
-    return Response.json({
-      type: 4,
-      data: {
-        content: "You still need to register on Crew Center first. Register with Discord OR with your email used in the callsign form at https://crew-aflv.vercel.app/ then click again.",
-        flags: 64,
-      },
-    });
+    return {
+      content: "You still need to register on Crew Center first. Register with Discord OR with your email used in the callsign form at https://crew-aflv.vercel.app/ then click again.",
+      flags: 64,
+      components: [],
+    };
   }
 
   const { data: sessionByToken } = await supabase
@@ -1346,13 +1344,11 @@ const handleRecruitmentPracticalReady = async (body: any, token: string) => {
       if (failedPractical?.completed_at) {
         const nextAt = new Date(new Date(failedPractical.completed_at).getTime() + 24 * 60 * 60 * 1000);
         if (Date.now() < nextAt.getTime()) {
-          return Response.json({
-            type: 4,
-            data: {
-              content: `You failed practical recently. Please wait until ${nextAt.toLocaleString()} before continuing.`,
-              flags: 64,
-            },
-          });
+          return {
+            content: `You failed practical recently. Please wait until ${nextAt.toLocaleString()} before continuing.`,
+            flags: 64,
+            components: [],
+          };
         }
       }
     }
@@ -1360,59 +1356,77 @@ const handleRecruitmentPracticalReady = async (body: any, token: string) => {
 
   const { data, error } = await supabase.rpc("assign_recruitment_practical", { p_token: token });
   if (error) {
-    return Response.json({ type: 4, data: { content: error.message || "Could not assign practical.", flags: 64 } });
+    return { content: error.message || "Could not assign practical.", flags: 64, components: [] };
   }
 
   const pid = String(data?.pid || "AFLV");
   const shortPid = pid.replace(/^AFLV/i, "") || pid;
-  const practicalId = String(data?.practical_id || "");
+
+  if (data?.already_assigned) {
+    return {
+      content: "✅ Practical request already submitted earlier. Your button has been disabled to prevent duplicates.",
+      flags: 64,
+      components: [],
+    };
+  }
+
+  return {
+    embeds: [{
+      title: "AFLV | Practical Assigned",
+      color: COLORS.BLUE,
+      description: "Your practical is assigned. Complete the task and wait for examiner review.",
+      fields: [
+        {
+          name: "Practical Tasks",
+          value: [
+            "1. Spawn at any gate at UUBW.",
+            "2. Taxi to RWY 30.",
+            "3. Depart straight and transition to UUDD pattern for RWY 32L.",
+            "4. Touch and go with proper UNICOM use.",
+            "5. Transition to UUDD RWY 32R downwind.",
+            "6. Touch and go, then depart to the northwest.",
+            "7. Proceed direct \"MR\" Moscow Shr. VOR.",
+            "8. Transition to pattern for landing at any runway at UUEE.",
+            "9. Land, park, and exit.",
+          ].join("\n"),
+        },
+        {
+          name: "Aircraft / Callsign",
+          value: `ATYP - C172\nCALLSIGN - Aeroflot ${shortPid}CR`,
+        },
+      ],
+      timestamp: new Date().toISOString(),
+    }],
+    components: [],
+    flags: 64,
+  };
+};
+
+const handleRecruitmentPracticalReady = (body: any, token: string) => {
+  const interactionToken = String(body?.token || "");
+  const applicationId = String(body?.application_id || "");
+
+  const task = (async () => {
+    if (!interactionToken || !applicationId) return;
+
+    try {
+      const payload = await processRecruitmentPracticalReady(body, token);
+      await sendInteractionFollowupData(applicationId, interactionToken, payload);
+    } catch (error: any) {
+      await sendInteractionFollowup(applicationId, interactionToken, error?.message || "Could not assign practical.", true);
+    }
+  })();
+
+  (globalThis as any).EdgeRuntime?.waitUntil?.(task);
 
   return Response.json({
-    type: 4,
+    type: 5,
     data: {
-      embeds: [{
-        title: "AFLV | Practical Assigned",
-        color: COLORS.BLUE,
-        description: "Your practical is assigned. Complete the task and wait for examiner review.",
-        fields: [
-          {
-            name: "Practical Tasks",
-            value: [
-              "1. Spawn at any gate at UUBW.",
-              "2. Taxi to RWY 30.",
-              "3. Depart straight and transition to UUDD pattern for RWY 32L.",
-              "4. Touch and go with proper UNICOM use.",
-              "5. Transition to UUDD RWY 32R downwind.",
-              "6. Touch and go, then depart to the northwest.",
-              "7. Proceed direct \"MR\" Moscow Shr. VOR.",
-              "8. Transition to pattern for landing at any runway at UUEE.",
-              "9. Land, park, and exit.",
-            ].join("\n"),
-          },
-          {
-            name: "Aircraft / Callsign",
-            value: `ATYP - C172\nCALLSIGN - Aeroflot ${shortPid}CR`,
-          },
-        ],
-        timestamp: new Date().toISOString(),
-      }],
-      components: practicalId ? [{
-        type: 1,
-        components: [{
-          type: 2,
-          style: 3,
-          custom_id: `${RECRUITMENT_PRACTICAL_REVIEW_PREFIX}passed:${practicalId}`,
-          label: "Pass",
-        }, {
-          type: 2,
-          style: 4,
-          custom_id: `${RECRUITMENT_PRACTICAL_REVIEW_PREFIX}failed:${practicalId}`,
-          label: "Fail",
-        }],
-      }] : [],
+      flags: 64,
     },
   });
 };
+
 
 serve(async (req) => {
   try {
