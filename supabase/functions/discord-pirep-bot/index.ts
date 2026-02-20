@@ -964,7 +964,7 @@ const sendInteractionFollowup = async (applicationId: string, interactionToken: 
   await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content, flags: 64 }),
+    body: JSON.stringify({ content }),
   });
 };
 
@@ -1028,14 +1028,25 @@ const processRecruitmentButton = async (body: any) => {
   const examMessageResponse = await discordApi(`/channels/${channel.id}/messages`, {
     method: "POST",
     body: JSON.stringify({
-      content: `Welcome <@${discordUserId}>!\nPlease complete your entrance written exam:\n${examUrl}\n\nAfter you pass, click **Set Preferred Callsign** below.`,
+      embeds: [{
+        title: "AFLV | Recruitment Written Test",
+        color: COLORS.BLUE,
+        description: [
+          "Please complete your entrance written exam using the link below:",
+          examUrl,
+          "",
+          "After you pass, click **Continue** below.",
+          "**Note:** If you fail, there is a 24-hour cooldown before a new written test link is issued.",
+        ].join("\n"),
+        timestamp: new Date().toISOString(),
+      }],
       components: [{
         type: 1,
         components: [{
           type: 2,
           style: 1,
           custom_id: `${RECRUITMENT_CALLSIGN_BUTTON_PREFIX}${token}`,
-          label: "Set Preferred Callsign",
+          label: "Continue",
         }],
       }],
     }),
@@ -1078,7 +1089,6 @@ const handleRecruitmentButton = (body: any) => {
 
   return Response.json({
     type: 5,
-    data: { flags: 64 },
   });
 };
 
@@ -1097,7 +1107,7 @@ const handleOpenCallsignModal = async (body: any, token: string) => {
     type: 9,
     data: {
       custom_id: `${RECRUITMENT_CALLSIGN_MODAL_PREFIX}${token}`.slice(0, 100),
-      title: "Set Preferred Callsign",
+      title: "Continue",
       components: [{
         type: 1,
         components: [{
@@ -1162,7 +1172,6 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
       type: 4,
       data: {
         content: `✅ Approved! Callsign **${preferredPid}** assigned. Click below when you are ready for practical.`,
-        flags: 64,
         components: [{
           type: 1,
           components: [{
@@ -1180,7 +1189,6 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
     type: 4,
     data: {
       content: `📝 Callsign saved as **${preferredPid}**. Now register/login at https://crew-aflv.vercel.app/ (prefer Discord login). Then click the button below to continue.`,
-      flags: 64,
       components: [{
         type: 1,
         components: [{
@@ -1230,7 +1238,6 @@ const handleRecruitmentPracticalReady = async (body: any, token: string) => {
   return Response.json({
     type: 4,
     data: {
-      flags: 64,
       embeds: [{
         title: "AFLV | Practical Assigned",
         color: COLORS.BLUE,
