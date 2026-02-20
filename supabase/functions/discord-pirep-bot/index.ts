@@ -774,6 +774,19 @@ const getLatestRecruitmentCooldown = async (discordUserId: string) => {
   return Math.ceil((nextEligibleAt - now) / (60 * 1000));
 };
 
+const getLatestRecruitmentSession = async (discordUserId: string) => {
+  const { data, error } = await supabase
+    .from("recruitment_exam_sessions")
+    .select("id, completed_at, passed, recruitment_channel_id, exam_message_id")
+    .eq("discord_user_id", discordUserId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+};
+
 const verifyAdminFromAuthHeader = async (authHeader: string | null) => {
   if (!authHeader?.startsWith("Bearer ")) return null;
   const token = authHeader.replace("Bearer ", "").trim();
@@ -902,6 +915,7 @@ const processRecruitmentButton = async (body: any) => {
 
   const examId = await getRecruitmentExamId();
 
+  const lastSession = await getLatestRecruitmentSession(discordUserId);
   const cooldownMinutes = await getLatestRecruitmentCooldown(discordUserId);
   if (cooldownMinutes) {
     const hours = Math.floor(cooldownMinutes / 60);
@@ -923,7 +937,13 @@ const processRecruitmentButton = async (body: any) => {
   const channel = await createRecruitmentChannel(guildId, discordUserId, username);
   const examUrl = `${FRONTEND_URL.replace(/\/$/, "")}/academy/exam/${examId}?recruitmentToken=${encodeURIComponent(token)}`;
 
-  await discordApi(`/channels/${channel.id}/messages`, {
+  if (lastSession?.passed === false && !cooldownMinutes && lastSession.recruitment_channel_id && lastSession.exam_message_id) {
+    await discordApi(`/channels/${lastSession.recruitment_channel_id}/messages/${lastSession.exam_message_id}`, {
+      method: "DELETE",
+    }).catch(() => null);
+  }
+
+  const examMessageResponse = await discordApi(`/channels/${channel.id}/messages`, {
     method: "POST",
     body: JSON.stringify({
       content: `Welcome <@${discordUserId}>!\nPlease complete your entrance written exam:\n${examUrl}\n\nAfter you pass, click **Set Preferred Callsign** below.`,
@@ -955,9 +975,11 @@ const processRecruitmentButton = async (body: any) => {
     }),
   });
 
+  const examMessagePayload = await examMessageResponse.json().catch(() => ({}));
+
   await supabase
     .from("recruitment_exam_sessions")
-    .update({ recruitment_channel_id: channel.id })
+    .update({ recruitment_channel_id: channel.id, exam_message_id: examMessagePayload?.id || null })
     .eq("token", token);
 
   return `Recruitment channel created: <#${channel.id}>`;
@@ -991,44 +1013,6 @@ const handleOpenCallsignModal = async (body: any, token: string) => {
   const discordUserId = body.member?.user?.id || body.user?.id;
   if (!discordUserId) {
     return Response.json({ type: 4, data: { content: "Missing Discord user context.", flags: 64 } });
-  }
-
-  const { data: session, error } = await supabase
-    .from("recruitment_exam_sessions")
-    .select("passed, completed_at")
-    .eq("token", token)
-    .maybeSingle();
-
-  if (error || !session) {
-    return Response.json({ type: 4, data: { content: "Recruitment session not found. Click Fly High again.", flags: 64 } });
-  }
-
-  if (session.passed !== true) {
-    if (session.completed_at && session.passed === false) {
-      const completedAt = new Date(session.completed_at).getTime();
-      const nextEligibleAt = completedAt + (24 * 60 * 60 * 1000);
-      const remainingMs = nextEligibleAt - Date.now();
-      if (remainingMs > 0) {
-        const totalMinutes = Math.ceil(remainingMs / (60 * 1000));
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        return Response.json({
-          type: 4,
-          data: {
-            content: `You failed the written test. Please wait 24 hours before retest. Remaining: ${hours}h ${minutes}m.`,
-            flags: 64,
-          },
-        });
-      }
-    }
-
-    return Response.json({
-      type: 4,
-      data: {
-        content: "Please complete and pass the written test first.",
-        flags: 64,
-      },
-    });
   }
 
   return Response.json({
@@ -1301,3 +1285,40 @@ serve(async (req) => {
 
   return embedResponse({ title: "Unsupported Command", description: "This interaction type is not handled.", color: COLORS.RED });
 });
+  const { data: session, error: sessionError } = await supabase
+    .from("recruitment_exam_sessions")
+    .select("passed, completed_at")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (sessionError || !session) {
+    return Response.json({ type: 4, data: { content: "Recruitment session not found. Click Fly High again.", flags: 64 } });
+  }
+
+  if (session.passed !== true) {
+    if (session.completed_at && session.passed === false) {
+      const completedAt = new Date(session.completed_at).getTime();
+      const nextEligibleAt = completedAt + (24 * 60 * 60 * 1000);
+      const remainingMs = nextEligibleAt - Date.now();
+      if (remainingMs > 0) {
+        const totalMinutes = Math.ceil(remainingMs / (60 * 1000));
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        return Response.json({
+          type: 4,
+          data: {
+            content: `You failed the written test. Please wait 24 hours before retest. Remaining: ${hours}h ${minutes}m.`,
+            flags: 64,
+          },
+        });
+      }
+    }
+
+    return Response.json({
+      type: 4,
+      data: {
+        content: "Please complete and pass the written test first.",
+        flags: 64,
+      },
+    });
+  }

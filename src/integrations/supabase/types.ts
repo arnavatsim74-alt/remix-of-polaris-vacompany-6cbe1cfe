@@ -1038,6 +1038,7 @@ export type Database = {
           preferred_pid: string | null
           practical_assigned_at: string | null
           created_at: string
+          exam_message_id: string | null
           recruitment_channel_id: string | null
           exam_id: string
           id: string
@@ -1054,6 +1055,7 @@ export type Database = {
           preferred_pid?: string | null
           practical_assigned_at?: string | null
           created_at?: string
+          exam_message_id?: string | null
           recruitment_channel_id?: string | null
           exam_id: string
           id?: string
@@ -1070,6 +1072,7 @@ export type Database = {
           preferred_pid?: string | null
           practical_assigned_at?: string | null
           created_at?: string
+          exam_message_id?: string | null
           recruitment_channel_id?: string | null
           exam_id?: string
           id?: string
