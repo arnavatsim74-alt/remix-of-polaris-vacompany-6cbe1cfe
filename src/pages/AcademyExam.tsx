@@ -27,6 +27,7 @@ export default function AcademyExam() {
   const [searchParams] = useSearchParams();
   const recruitmentToken = searchParams.get("recruitmentToken");
   const isRecruitmentMode = !!recruitmentToken;
+  const canAccessExam = !!pilot?.id || isRecruitmentMode;
   const queryClient = useQueryClient();
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -42,7 +43,7 @@ export default function AcademyExam() {
       const { data } = await supabase.from("academy_exams").select("*").eq("id", examId!).single();
       return data;
     },
-    enabled: !!examId,
+    enabled: !!examId && canAccessExam,
   });
 
   const { data: questions } = useQuery({
@@ -51,7 +52,7 @@ export default function AcademyExam() {
       const { data } = await supabase.from("academy_exam_questions").select("*").eq("exam_id", examId!).order("sort_order");
       return (data || []) as unknown as ExamQuestion[];
     },
-    enabled: !!examId,
+    enabled: !!examId && canAccessExam,
   });
 
   const { data: previousAttempts } = useQuery({
@@ -150,6 +151,24 @@ export default function AcademyExam() {
     queryClient.invalidateQueries({ queryKey: ["academy-exam-attempts"] });
     toast[passed ? "success" : "error"](passed ? `Passed with ${calculatedScore}%!` : `Failed with ${calculatedScore}%`);
   };
+
+  if (!canAccessExam) {
+    return (
+      <div className="min-h-screen bg-background p-4 md:p-8 flex items-center justify-center">
+        <Card className="max-w-lg w-full">
+          <CardHeader>
+            <CardTitle>Login Required</CardTitle>
+            <CardDescription>
+              Please log in for normal academy exams, or open the recruitment exam link from Discord that includes a recruitment token.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => navigate("/auth")}>Go to Login</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const attemptsUsed = isRecruitmentMode ? 0 : (previousAttempts?.length || 0);
   const maxAttempts = exam?.max_attempts || 3;
