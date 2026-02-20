@@ -70,7 +70,14 @@ export default function AuthPage() {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (error || applicationData?.status !== "approved") {
+      if (error) {
+        await signOut();
+        toast.error("Could not verify your account approval status. Please try again.");
+        navigate("/auth", { replace: true });
+        return;
+      }
+
+      if (applicationData && applicationData.status !== "approved") {
         await signOut();
         toast.error("Your application is pending admin approval. Please wait for approval before logging in.");
         navigate("/auth", { replace: true });

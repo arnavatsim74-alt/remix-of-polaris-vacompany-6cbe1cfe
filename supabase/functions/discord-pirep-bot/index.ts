@@ -969,6 +969,14 @@ const sendInteractionFollowup = async (
   content: string,
   ephemeral = false,
 ) => {
+  const response = await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, ...(ephemeral ? { flags: 64 } : {}) }),
+  });
+
+  if (response.ok) return;
+
   await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1099,6 +1107,9 @@ const handleRecruitmentButton = (body: any) => {
 
   return Response.json({
     type: 5,
+    data: {
+      flags: 64,
+    },
   });
 };
 
@@ -1181,10 +1192,12 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
   }
 
   if (data?.approved && guildId) {
-    await discordApi(`/guilds/${guildId}/members/${discordUserId}`, {
+    const nickTask = discordApi(`/guilds/${guildId}/members/${discordUserId}`, {
       method: "PATCH",
       body: JSON.stringify({ nick: `[${preferredPid}] ${username}`.slice(0, 32) }),
     }).catch(() => null);
+
+    (globalThis as any).EdgeRuntime?.waitUntil?.(nickTask);
   }
 
   if (data?.approved) {

@@ -237,6 +237,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: null };
     }
 
+    if (!applicationData) {
+      await supabase.auth.signOut();
+      return { error: new Error("No pilot profile found for this account yet. Please complete onboarding from Discord recruitment flow.") };
+    }
+
     await supabase.auth.signOut();
     return { error: new Error("Your application is still pending admin approval.") };
   };
