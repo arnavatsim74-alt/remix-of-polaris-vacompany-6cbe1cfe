@@ -3,12 +3,19 @@ import nacl from "npm:tweetnacl@1.0.3";
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 
 const DISCORD_PUBLIC_KEY = Deno.env.get("DISCORD_PUBLIC_KEY") || "";
+const DISCORD_BOT_TOKEN = Deno.env.get("DISCORD_BOT_TOKEN") || "";
+const DISCORD_REGISTER_SECRET = Deno.env.get("DISCORD_REGISTER_SECRET") || "";
+const FRONTEND_URL = Deno.env.get("FRONTEND_URL") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 if (!DISCORD_PUBLIC_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing env vars. Required: DISCORD_PUBLIC_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY");
 }
+
+const RECRUITMENTS_CHANNEL_ID = "1474299044091265096";
+const RECRUITMENTS_CATEGORY_ID = "1426656419758870693";
+const RECRUITMENT_BUTTON_CUSTOM_ID = "recruitment_fly_high";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
@@ -614,7 +621,193 @@ const handleAcceptChallengeButton = async (body: any, challengeId: string) => {
   });
 };
 
+
+const discordApi = async (path: string, init: RequestInit = {}) => {
+  if (!DISCORD_BOT_TOKEN) throw new Error("Missing DISCORD_BOT_TOKEN");
+  return fetch(`https://discord.com/api/v10${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
+  });
+};
+
+const createRecruitmentEmbed = async () => {
+  const response = await discordApi(`/channels/${RECRUITMENTS_CHANNEL_ID}/messages`, {
+    method: "POST",
+    body: JSON.stringify({
+      embeds: [{
+        title: "AFLV Recruitments",
+        description: "Click **Fly High** to open your recruitment ticket and start your entrance written exam.",
+        color: COLORS.BLUE,
+      }],
+      components: [{
+        type: 1,
+        components: [{
+          type: 2,
+          style: 1,
+          custom_id: RECRUITMENT_BUTTON_CUSTOM_ID,
+          label: "Fly High",
+        }],
+      }],
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload?.message || "Failed to create recruitment embed");
+  return payload;
+};
+
+const resolveAuthUserFromDiscord = async (discordUserId: string) => {
+  const { data, error } = await supabase
+    .schema("auth")
+    .from("identities")
+    .select("user_id")
+    .eq("provider", "discord")
+    .eq("provider_id", discordUserId)
+    .limit(1);
+
+  if (error) throw error;
+  return data?.[0]?.user_id || null;
+};
+
+const getRecruitmentExamId = async () => {
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "recruitment_exam_id")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data?.value) throw new Error("Missing site setting: recruitment_exam_id");
+  return String(data.value);
+};
+
+const ensureApplication = async (userId: string, discordUserId: string, username: string) => {
+  const { data: existing } = await supabase
+    .from("pilot_applications")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existing?.id) {
+    await supabase.from("pilot_applications").update({ discord_user_id: discordUserId }).eq("id", existing.id);
+    return existing.id;
+  }
+
+  const fallbackEmail = `${discordUserId}@users.noreply.local`;
+  const { data, error } = await supabase
+    .from("pilot_applications")
+    .insert({
+      user_id: userId,
+      email: fallbackEmail,
+      full_name: username,
+      experience_level: "Grade 2",
+      preferred_simulator: "No",
+      reason_for_joining: "Recruitment flow",
+      discord_username: username,
+      if_grade: "Grade 2",
+      is_ifatc: "No",
+      ifc_trust_level: "I don't know",
+      age_range: "13-16",
+      other_va_membership: "No",
+      hear_about_aflv: "Discord Recruitment",
+      discord_user_id: discordUserId,
+      status: "pending",
+    } as any)
+    .select("id")
+    .single();
+
+  if (error) throw error;
+  return data.id as string;
+};
+
+const createRecruitmentChannel = async (guildId: string, discordUserId: string, username: string) => {
+  const safeUsername = username.toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 40) || discordUserId;
+  const channelName = `recruitment-${safeUsername}`;
+
+  const response = await discordApi(`/guilds/${guildId}/channels`, {
+    method: "POST",
+    body: JSON.stringify({
+      name: channelName,
+      type: 0,
+      parent_id: RECRUITMENTS_CATEGORY_ID,
+      permission_overwrites: [
+        { id: guildId, type: 0, deny: "1024", allow: "0" },
+        { id: discordUserId, type: 1, allow: "1024", deny: "0" },
+      ],
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload?.message || "Failed to create recruitment channel");
+  return payload;
+};
+
+const handleRecruitmentButton = async (body: any) => {
+  const discordUserId = body.member?.user?.id;
+  const username = body.member?.user?.username || "candidate";
+  const guildId = body.guild_id;
+
+  if (!discordUserId || !guildId) {
+    return Response.json({ type: 4, data: { content: "Missing Discord user/guild context.", flags: 64 } });
+  }
+
+  const authUserId = await resolveAuthUserFromDiscord(discordUserId);
+  if (!authUserId) {
+    return Response.json({
+      type: 4,
+      data: {
+        content: "Please sign in on Crew Center with Discord first, then click **Fly High** again.",
+        flags: 64,
+      },
+    });
+  }
+
+  const examId = await getRecruitmentExamId();
+  const applicationId = await ensureApplication(authUserId, discordUserId, username);
+  const token = crypto.randomUUID();
+
+  const { error: sessionError } = await supabase.from("recruitment_exam_sessions").insert({
+    application_id: applicationId,
+    exam_id: examId,
+    token,
+  });
+  if (sessionError) throw sessionError;
+
+  const channel = await createRecruitmentChannel(guildId, discordUserId, username);
+  const examUrl = `${FRONTEND_URL.replace(/\/$/, "")}/academy/exam/${examId}?recruitmentToken=${encodeURIComponent(token)}`;
+
+  await discordApi(`/channels/${channel.id}/messages`, {
+    method: "POST",
+    body: JSON.stringify({
+      content: `Welcome <@${discordUserId}>!\nPlease complete your entrance written exam:\n${examUrl}\n\nOnce you pass, your application will be auto-approved.`,
+    }),
+  });
+
+  return Response.json({
+    type: 4,
+    data: { content: `Recruitment channel created: <#${channel.id}>`, flags: 64 },
+  });
+};
+
 serve(async (req) => {
+  if (req.headers.get("x-register-secret")) {
+    const provided = req.headers.get("x-register-secret") || "";
+    if (!DISCORD_REGISTER_SECRET || provided !== DISCORD_REGISTER_SECRET) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    try {
+      const message = await createRecruitmentEmbed();
+      return Response.json({ ok: true, messageId: message.id, channelId: RECRUITMENTS_CHANNEL_ID });
+    } catch (error: any) {
+      return Response.json({ ok: false, error: error?.message || "Failed to create recruitment embed" }, { status: 500 });
+    }
+  }
+
   const rawBody = await req.text();
   const valid = await verifyDiscordRequest(req, rawBody);
   if (!valid) return new Response("invalid request signature", { status: 401 });
@@ -659,6 +852,7 @@ serve(async (req) => {
     const customId = String(body.data?.custom_id || "");
     if (customId.startsWith("event_join:")) return handleJoinEventButton(body, customId.slice("event_join:".length));
     if (customId.startsWith("challenge_accept:")) return handleAcceptChallengeButton(body, customId.slice("challenge_accept:".length));
+    if (customId === RECRUITMENT_BUTTON_CUSTOM_ID) return handleRecruitmentButton(body);
     return embedResponse({ title: "Action Failed", description: "Unknown button action.", color: COLORS.RED });
   }
 
