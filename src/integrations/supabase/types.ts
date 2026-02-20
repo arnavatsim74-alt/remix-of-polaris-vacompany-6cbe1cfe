@@ -1469,6 +1469,10 @@ export type Database = {
           registered_at: string | null
         }
       }
+      complete_recruitment_with_pid: {
+        Args: { p_pid: string; p_token: string }
+        Returns: Json
+      }
       submit_recruitment_exam: {
         Args: { p_passed: boolean; p_score: number; p_token: string }
         Returns: Json

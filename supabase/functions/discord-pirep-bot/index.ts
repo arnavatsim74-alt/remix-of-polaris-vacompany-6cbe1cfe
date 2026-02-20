@@ -16,6 +16,8 @@ if (!DISCORD_PUBLIC_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 const RECRUITMENTS_CHANNEL_ID = "1474299044091265096";
 const RECRUITMENTS_CATEGORY_ID = "1426656419758870693";
 const RECRUITMENT_BUTTON_CUSTOM_ID = "recruitment_fly_high";
+const RECRUITMENT_CALLSIGN_BUTTON_PREFIX = "recruitment_set_callsign:";
+const RECRUITMENT_CALLSIGN_MODAL_PREFIX = "recruitment_callsign_modal:";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
@@ -783,7 +785,16 @@ const handleRecruitmentButton = async (body: any) => {
   await discordApi(`/channels/${channel.id}/messages`, {
     method: "POST",
     body: JSON.stringify({
-      content: `Welcome <@${discordUserId}>!\nPlease complete your entrance written exam:\n${examUrl}\n\nOnce you pass, your application will be auto-approved.`,
+      content: `Welcome <@${discordUserId}>!\nPlease complete your entrance written exam:\n${examUrl}\n\nAfter you pass, click **Set Preferred Callsign** below and enter it in format AFLVXXX.`,
+      components: [{
+        type: 1,
+        components: [{
+          type: 2,
+          style: 1,
+          custom_id: `${RECRUITMENT_CALLSIGN_BUTTON_PREFIX}${token}`,
+          label: "Set Preferred Callsign",
+        }],
+      }],
     }),
   });
 
@@ -791,6 +802,91 @@ const handleRecruitmentButton = async (body: any) => {
     type: 4,
     data: { content: `Recruitment channel created: <#${channel.id}>`, flags: 64 },
   });
+};
+
+
+const handleOpenCallsignModal = async (body: any, token: string) => {
+  const discordUserId = body.member?.user?.id || body.user?.id;
+  if (!discordUserId) {
+    return Response.json({ type: 4, data: { content: "Missing Discord user context.", flags: 64 } });
+  }
+
+  const { data: session } = await supabase
+    .from("recruitment_exam_sessions")
+    .select("passed")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (!session?.passed) {
+    return Response.json({ type: 4, data: { content: "Please pass the entrance exam first, then set your callsign.", flags: 64 } });
+  }
+
+  return Response.json({
+    type: 9,
+    data: {
+      custom_id: `${RECRUITMENT_CALLSIGN_MODAL_PREFIX}${token}`.slice(0, 100),
+      title: "Set Preferred Callsign",
+      components: [{
+        type: 1,
+        components: [{
+          type: 4,
+          custom_id: "preferred_callsign",
+          label: "Preferred Callsign (AFLVXXX)",
+          style: 1,
+          min_length: 7,
+          max_length: 7,
+          required: true,
+          placeholder: "AFLV123",
+        }],
+      }],
+    },
+  });
+};
+
+const readModalInput = (body: any, customId: string) => {
+  const rows = body.data?.components || [];
+  for (const row of rows) {
+    for (const comp of row.components || []) {
+      if (comp.custom_id === customId) return String(comp.value || "");
+    }
+  }
+  return "";
+};
+
+const handleSubmitCallsignModal = async (body: any, token: string) => {
+  const discordUserId = body.member?.user?.id || body.user?.id;
+  const username = body.member?.user?.username || body.user?.username || "User";
+  const guildId = body.guild_id;
+  if (!discordUserId) {
+    return Response.json({ type: 4, data: { content: "Missing Discord user context.", flags: 64 } });
+  }
+
+  const preferredPid = readModalInput(body, "preferred_callsign").toUpperCase().trim();
+  if (!/^AFLV[A-Z0-9]{3}$/.test(preferredPid)) {
+    return Response.json({ type: 4, data: { content: "Invalid format. Use AFLVXXX (letters/numbers).", flags: 64 } });
+  }
+
+  const { data, error } = await supabase.rpc("complete_recruitment_with_pid", {
+    p_token: token,
+    p_pid: preferredPid,
+  });
+
+  if (error) {
+    return Response.json({ type: 4, data: { content: error.message || "Could not set callsign.", flags: 64 } });
+  }
+
+  if (guildId) {
+    await discordApi(`/guilds/${guildId}/members/${discordUserId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ nick: `[${preferredPid}] ${username}`.slice(0, 32) }),
+    }).catch(() => null);
+  }
+
+  const message = data?.approved
+    ? `✅ Approved! Callsign **${preferredPid}** assigned and your application is approved.`
+    : `⚠️ ${data?.message || "Could not complete approval."}`;
+
+  return Response.json({ type: 4, data: { content: message, flags: 64 } });
 };
 
 serve(async (req) => {
@@ -853,7 +949,16 @@ serve(async (req) => {
     if (customId.startsWith("event_join:")) return handleJoinEventButton(body, customId.slice("event_join:".length));
     if (customId.startsWith("challenge_accept:")) return handleAcceptChallengeButton(body, customId.slice("challenge_accept:".length));
     if (customId === RECRUITMENT_BUTTON_CUSTOM_ID) return handleRecruitmentButton(body);
+    if (customId.startsWith(RECRUITMENT_CALLSIGN_BUTTON_PREFIX)) return handleOpenCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_BUTTON_PREFIX.length));
     return embedResponse({ title: "Action Failed", description: "Unknown button action.", color: COLORS.RED });
+  }
+
+  if (body.type === 5) {
+    const customId = String(body.data?.custom_id || "");
+    if (customId.startsWith(RECRUITMENT_CALLSIGN_MODAL_PREFIX)) {
+      return handleSubmitCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_MODAL_PREFIX.length));
+    }
+    return embedResponse({ title: "Action Failed", description: "Unknown modal action.", color: COLORS.RED });
   }
 
   if (body.type === 2) {

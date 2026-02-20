@@ -136,7 +136,7 @@ export default function AcademyExam() {
         toast.error(error.message || "Failed to submit recruitment exam");
         return;
       }
-      toast[passed ? "success" : "error"](passed ? `Passed with ${calculatedScore}%! Your application has been auto-approved.` : `Failed with ${calculatedScore}%`);
+      toast[passed ? "success" : "error"](passed ? `Passed with ${calculatedScore}%! Return to Discord and click Set Preferred Callsign to finish approval.` : `Failed with ${calculatedScore}%`);
       return;
     }
 
