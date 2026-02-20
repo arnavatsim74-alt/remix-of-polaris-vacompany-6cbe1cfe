@@ -1035,6 +1035,7 @@ export type Database = {
           completed_at: string | null
           discord_user_id: string | null
           created_at: string
+          recruitment_channel_id: string | null
           exam_id: string
           id: string
           passed: boolean | null
@@ -1047,6 +1048,7 @@ export type Database = {
           completed_at?: string | null
           discord_user_id?: string | null
           created_at?: string
+          recruitment_channel_id?: string | null
           exam_id: string
           id?: string
           passed?: boolean | null
@@ -1059,6 +1061,7 @@ export type Database = {
           completed_at?: string | null
           discord_user_id?: string | null
           created_at?: string
+          recruitment_channel_id?: string | null
           exam_id?: string
           id?: string
           passed?: boolean | null

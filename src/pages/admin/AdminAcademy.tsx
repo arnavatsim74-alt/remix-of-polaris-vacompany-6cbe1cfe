@@ -823,6 +823,13 @@ function PracticalsTab() {
         completed_at: ["passed", "failed"].includes(status) ? new Date().toISOString() : null,
       }).eq("id", id);
       if (error) throw error;
+
+      if (["passed", "failed"].includes(status)) {
+        const { error: notifyError } = await supabase.functions.invoke("discord-pirep-bot", {
+          body: { action: "handle_practical_status", practicalId: id, status },
+        });
+        if (notifyError) throw notifyError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-practicals"] });

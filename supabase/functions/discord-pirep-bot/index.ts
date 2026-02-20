@@ -761,6 +761,113 @@ const getLatestRecruitmentCooldown = async (applicationId: string) => {
   return Math.ceil((nextEligibleAt - now) / (60 * 1000));
 };
 
+const verifyAdminFromAuthHeader = async (authHeader: string | null) => {
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  const token = authHeader.replace("Bearer ", "").trim();
+  if (!token) return null;
+
+  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  if (userError || !userData.user) return null;
+
+  const { data: adminRole, error: roleError } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userData.user.id)
+    .eq("role", "admin")
+    .maybeSingle();
+
+  if (roleError || !adminRole) return null;
+  return userData.user.id;
+};
+
+const getLatestRecruitmentSessionForUser = async (userId: string) => {
+  const { data: app } = await supabase
+    .from("pilot_applications")
+    .select("id")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!app?.id) return null;
+
+  const { data: session } = await supabase
+    .from("recruitment_exam_sessions")
+    .select("recruitment_channel_id, discord_user_id")
+    .eq("application_id", app.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return session || null;
+};
+
+const handlePracticalStatusAction = async (body: any, authHeader: string | null) => {
+  const adminUserId = await verifyAdminFromAuthHeader(authHeader);
+  if (!adminUserId) return new Response("Unauthorized", { status: 401 });
+
+  const practicalId = String(body?.practicalId || "");
+  const status = String(body?.status || "");
+  if (!practicalId || !["passed", "failed"].includes(status)) {
+    return new Response("Invalid practical payload", { status: 400 });
+  }
+
+  const { data: practical, error: practicalError } = await supabase
+    .from("academy_practicals")
+    .select("id, pilot_id, course_id, notes, status, pilots!academy_practicals_pilot_id_fkey(id, user_id, pid, full_name, discord_user_id)")
+    .eq("id", practicalId)
+    .maybeSingle();
+
+  if (practicalError || !practical?.pilots) {
+    return new Response("Practical not found", { status: 404 });
+  }
+
+  const pilot = practical.pilots as any;
+  const latestSession = await getLatestRecruitmentSessionForUser(String(pilot.user_id));
+  const discordUserId = String(pilot.discord_user_id || latestSession?.discord_user_id || "");
+  const channelId = String(latestSession?.recruitment_channel_id || "");
+
+  if (status === "passed") {
+    if (channelId) {
+      await discordApi(`/channels/${channelId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({
+          content: `🎉 Congratulations <@${discordUserId}>! You passed your practical.\nPlease read the Pilot Guide here: <#1428000030521823293>.`,
+        }),
+      }).catch(() => null);
+
+      if (discordUserId) {
+        await discordApi(`/channels/${channelId}/permissions/${discordUserId}`, {
+          method: "PUT",
+          body: JSON.stringify({ type: 1, allow: "0", deny: "1024" }),
+        }).catch(() => null);
+      }
+    }
+
+    return Response.json({ ok: true, action: "pass_notification_sent", adminUserId });
+  }
+
+  const nextAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  await supabase.from("academy_practicals").insert({
+    pilot_id: practical.pilot_id,
+    course_id: practical.course_id,
+    status: "scheduled",
+    scheduled_at: nextAt,
+    notes: `Auto-retest after failed practical (${new Date().toISOString()})`,
+  });
+
+  if (channelId) {
+    await discordApi(`/channels/${channelId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({
+        content: `❌ <@${discordUserId}> practical result: failed. You have a 24-hour cooldown. A retest practical has been auto-assigned for after cooldown.`,
+      }),
+    }).catch(() => null);
+  }
+
+  return Response.json({ ok: true, action: "fail_retest_assigned", adminUserId });
+};
+
 const sendInteractionFollowup = async (applicationId: string, interactionToken: string, content: string) => {
   await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}`, {
     method: "POST",
@@ -822,6 +929,11 @@ const processRecruitmentButton = async (body: any) => {
       }],
     }),
   });
+
+  await supabase
+    .from("recruitment_exam_sessions")
+    .update({ recruitment_channel_id: channel.id })
+    .eq("token", token);
 
   return `Recruitment channel created: <#${channel.id}>`;
 };
@@ -935,6 +1047,17 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
 };
 
 serve(async (req) => {
+  if (!req.headers.get("x-signature-ed25519") && req.headers.get("authorization")) {
+    try {
+      const body = await req.json().catch(() => ({}));
+      if (body?.action === "handle_practical_status") {
+        return await handlePracticalStatusAction(body, req.headers.get("authorization"));
+      }
+    } catch {
+      return new Response("Bad request", { status: 400 });
+    }
+  }
+
   if (req.headers.get("x-register-secret")) {
     const provided = req.headers.get("x-register-secret") || "";
     if (!DISCORD_REGISTER_SECRET || provided !== DISCORD_REGISTER_SECRET) {
