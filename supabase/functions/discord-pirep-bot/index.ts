@@ -1216,6 +1216,7 @@ CALLSIGN - Aeroflot ${pid}CR**`,
 };
 
 serve(async (req) => {
+  try {
   if (!req.headers.get("x-signature-ed25519") && req.headers.get("authorization")) {
     try {
       const body = await req.json().catch(() => ({}));
@@ -1319,6 +1320,23 @@ serve(async (req) => {
   }
 
   return embedResponse({ title: "Unsupported Command", description: "This interaction type is not handled.", color: COLORS.RED });
+  } catch (error: any) {
+    console.error("discord-pirep-bot unhandled error", error);
+
+    // If this is a Discord interaction request, return a valid interaction response
+    // so users don't see generic "This interaction failed".
+    if (req.headers.get("x-signature-ed25519")) {
+      return Response.json({
+        type: 4,
+        data: {
+          content: error?.message || "Unexpected bot error. Please try again.",
+          flags: 64,
+        },
+      });
+    }
+
+    return Response.json({ ok: false, error: error?.message || "Unexpected bot error" }, { status: 500 });
+  }
 });
   const { data: session, error: sessionError } = await supabase
     .from("recruitment_exam_sessions")
