@@ -5,6 +5,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const DISCORD_BOT_TOKEN = Deno.env.get("DISCORD_BOT_TOKEN") || "";
 const FRONTEND_URL = Deno.env.get("FRONTEND_URL") || "";
+const RECRUITMENT_PRACTICAL_REVIEW_PREFIX = "recruitment_practical_review:";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
@@ -118,7 +119,104 @@ serve(async () => {
       console.log("Retest session created", { oldSessionId: session.id, newSessionId: newSession.id });
     }
 
-    return Response.json({ ok: true, processed, sent, skipped });
+
+
+    let practicalRemindersSent = 0;
+    const { data: pendingRetestPracticals } = await supabase
+      .from("academy_practicals")
+      .select("id, pilot_id, scheduled_at, notes, pilots!academy_practicals_pilot_id_fkey(user_id, discord_user_id, pid)")
+      .eq("status", "scheduled")
+      .ilike("notes", "Auto-retest after failed practical%")
+      .lte("scheduled_at", new Date().toISOString())
+      .order("scheduled_at", { ascending: true })
+      .limit(200);
+
+    for (const practical of pendingRetestPracticals || []) {
+      const notes = String((practical as any)?.notes || "");
+      if (notes.includes("[DISCORD_SENT]")) continue;
+
+      const pilot = (practical as any).pilots;
+      const pilotUserId = String(pilot?.user_id || "");
+      if (!pilotUserId) continue;
+
+      const { data: app } = await supabase
+        .from("pilot_applications")
+        .select("id")
+        .eq("user_id", pilotUserId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!app?.id) continue;
+
+      const { data: session } = await supabase
+        .from("recruitment_exam_sessions")
+        .select("recruitment_channel_id, discord_user_id")
+        .eq("application_id", app.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!session?.recruitment_channel_id) continue;
+
+      const shortPid = String(pilot?.pid || "AFLV").replace(/^AFLV/i, "");
+      const messageResponse = await discordApi(`/channels/${session.recruitment_channel_id}/messages`, {
+        method: "POST",
+        body: JSON.stringify({
+          content: session.discord_user_id ? `<@${session.discord_user_id}>` : undefined,
+          embeds: [{
+            title: "AFLV | Practical Retest Assigned",
+            color: 0x3498db,
+            description: "Your 24-hour cooldown is complete. Practical retest is now active.",
+            fields: [
+              {
+                name: "Practical Tasks",
+                value: [
+                  "1. Spawn at any gate at UUBW.",
+                  "2. Taxi to RWY 30.",
+                  "3. Depart straight and transition to UUDD pattern for RWY 32L.",
+                  "4. Touch and go with proper UNICOM use.",
+                  "5. Transition to UUDD RWY 32R downwind.",
+                  "6. Touch and go, then depart to the northwest.",
+                  "7. Proceed direct \"MR\" Moscow Shr. VOR.",
+                  "8. Transition to pattern for landing at any runway at UUEE.",
+                  "9. Land, park, and exit.",
+                ].join("\n"),
+              },
+              { name: "Aircraft / Callsign", value: `ATYP - C172\nCALLSIGN - Aeroflot ${shortPid}CR` },
+            ],
+            timestamp: new Date().toISOString(),
+          }],
+          components: [{
+            type: 1,
+            components: [{
+              type: 2,
+              style: 3,
+              custom_id: `${RECRUITMENT_PRACTICAL_REVIEW_PREFIX}passed:${(practical as any).id}`,
+              label: "Pass",
+            }, {
+              type: 2,
+              style: 4,
+              custom_id: `${RECRUITMENT_PRACTICAL_REVIEW_PREFIX}failed:${(practical as any).id}`,
+              label: "Fail",
+            }],
+          }],
+        }),
+      });
+
+      if (!messageResponse.ok) continue;
+
+      await supabase
+        .from("academy_practicals")
+        .update({ notes: `${notes}
+
+[DISCORD_SENT] ${new Date().toISOString()}` })
+        .eq("id", (practical as any).id);
+
+      practicalRemindersSent++;
+    }
+
+    return Response.json({ ok: true, processed, sent, skipped, practicalRemindersSent });
   } catch (error: any) {
     console.error("recruitment-retest-cron failed", error);
     return Response.json({ ok: false, error: error?.message || "Unknown error" }, { status: 500 });

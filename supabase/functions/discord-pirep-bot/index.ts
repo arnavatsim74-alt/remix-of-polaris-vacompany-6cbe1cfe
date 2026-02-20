@@ -21,6 +21,7 @@ const RECRUITMENT_CALLSIGN_MODAL_PREFIX = "recruitment_callsign_modal:";
 const RECRUITMENT_PRACTICAL_READY_PREFIX = "recruitment_practical_ready:";
 const RECRUITMENT_PRACTICAL_REVIEW_PREFIX = "recruitment_practical_review:";
 const RECRUITMENT_PRACTICAL_REVIEWER_ROLE_ID = "1427942885004808263";
+const RECRUITMENT_STAFF_ROLE_ID = "1427942885004808263";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
@@ -733,6 +734,7 @@ const createRecruitmentChannel = async (guildId: string, discordUserId: string, 
       permission_overwrites: [
         { id: guildId, type: 0, deny: "1024", allow: "0" },
         { id: discordUserId, type: 1, allow: "1024", deny: "0" },
+        { id: RECRUITMENT_STAFF_ROLE_ID, type: 0, allow: "1024", deny: "0" },
       ],
     }),
   });
@@ -960,11 +962,16 @@ const handlePracticalReviewButton = async (body: any, customId: string) => {
   }
 };
 
-const sendInteractionFollowup = async (applicationId: string, interactionToken: string, content: string) => {
+const sendInteractionFollowup = async (
+  applicationId: string,
+  interactionToken: string,
+  content: string,
+  ephemeral = false,
+) => {
   await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, ...(ephemeral ? { flags: 64 } : {}) }),
   });
 };
 
@@ -986,7 +993,7 @@ const processRecruitmentButton = async (body: any) => {
   if (cooldownMinutes) {
     const hours = Math.floor(cooldownMinutes / 60);
     const minutes = cooldownMinutes % 60;
-    return `You need to wait before retest. Next exam link will be available in ${hours}h ${minutes}m.`;
+    return { content: `You need to wait before retest. Next exam link will be available in ${hours}h ${minutes}m.`, ephemeral: true };
   }
 
   const token = crypto.randomUUID();
@@ -1028,6 +1035,7 @@ const processRecruitmentButton = async (body: any) => {
   const examMessageResponse = await discordApi(`/channels/${channel.id}/messages`, {
     method: "POST",
     body: JSON.stringify({
+      content: `<@${discordUserId}>`,
       embeds: [{
         title: "AFLV | Recruitment Written Test",
         color: COLORS.BLUE,
@@ -1067,7 +1075,7 @@ const processRecruitmentButton = async (body: any) => {
       .eq("token", token);
   }
 
-  return `Recruitment channel created: <#${channel.id}>`;
+  return { content: `Recruitment channel created: <#${channel.id}>`, ephemeral: true };
 };
 
 const handleRecruitmentButton = (body: any) => {
@@ -1078,10 +1086,11 @@ const handleRecruitmentButton = (body: any) => {
     if (!interactionToken || !applicationId) return;
 
     try {
-      const resultMessage = await processRecruitmentButton(body);
-      await sendInteractionFollowup(applicationId, interactionToken, resultMessage);
+      const result = await processRecruitmentButton(body);
+      const payload = typeof result === "string" ? { content: result, ephemeral: false } : result;
+      await sendInteractionFollowup(applicationId, interactionToken, payload.content, payload.ephemeral);
     } catch (error: any) {
-      await sendInteractionFollowup(applicationId, interactionToken, error?.message || "Recruitment flow failed");
+      await sendInteractionFollowup(applicationId, interactionToken, error?.message || "Recruitment flow failed", true);
     }
   })();
 
@@ -1224,6 +1233,44 @@ const handleRecruitmentPracticalReady = async (body: any, token: string) => {
         flags: 64,
       },
     });
+  }
+
+  const { data: sessionByToken } = await supabase
+    .from("recruitment_exam_sessions")
+    .select("auth_user_id")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (sessionByToken?.auth_user_id) {
+    const { data: pilotRow } = await supabase
+      .from("pilots")
+      .select("id")
+      .eq("user_id", sessionByToken.auth_user_id)
+      .maybeSingle();
+
+    if (pilotRow?.id) {
+      const { data: failedPractical } = await supabase
+        .from("academy_practicals")
+        .select("completed_at")
+        .eq("pilot_id", pilotRow.id)
+        .eq("status", "failed")
+        .order("completed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (failedPractical?.completed_at) {
+        const nextAt = new Date(new Date(failedPractical.completed_at).getTime() + 24 * 60 * 60 * 1000);
+        if (Date.now() < nextAt.getTime()) {
+          return Response.json({
+            type: 4,
+            data: {
+              content: `You failed practical recently. Please wait until ${nextAt.toLocaleString()} before continuing.`,
+              flags: 64,
+            },
+          });
+        }
+      }
+    }
   }
 
   const { data, error } = await supabase.rpc("assign_recruitment_practical", { p_token: token });

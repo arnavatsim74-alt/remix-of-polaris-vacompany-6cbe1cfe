@@ -781,8 +781,8 @@ function PracticalsTab() {
   const queryClient = useQueryClient();
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [assignForm, setAssignForm] = useState({ pilot_id: "", course_id: "standalone", notes: "", scheduled_at: "" });
-  const [failReasonId, setFailReasonId] = useState<string | null>(null);
-  const [failReason, setFailReason] = useState("");
+  const [reviewTarget, setReviewTarget] = useState<{ id: string; status: "passed" | "failed" } | null>(null);
+  const [reviewNotes, setReviewNotes] = useState("");
   const [recruitmentPracticalTarget, setRecruitmentPracticalTarget] = useState("standalone");
 
   const { data: practicals, isLoading } = useQuery({
@@ -985,25 +985,8 @@ function PracticalsTab() {
                   <Badge variant={p.status === "passed" ? "default" : p.status === "failed" ? "destructive" : "secondary"}>{p.status}</Badge>
                   {(p.status === "scheduled" || p.status === "completed") && (
                     <>
-                      <Button size="sm" variant="outline" onClick={() => updateMutation.mutate({ id: p.id, status: "passed" })}>Pass</Button>
-                      {failReasonId === p.id ? (
-                        <div className="flex items-center gap-1">
-                          <Input
-                            placeholder="Fail reason..."
-                            value={failReason}
-                            onChange={e => setFailReason(e.target.value)}
-                            className="h-8 w-40 text-xs"
-                          />
-                          <Button size="sm" variant="destructive" onClick={() => {
-                            updateMutation.mutate({ id: p.id, status: "failed", result_notes: failReason });
-                            setFailReasonId(null);
-                            setFailReason("");
-                          }}>Confirm</Button>
-                          <Button size="sm" variant="ghost" onClick={() => { setFailReasonId(null); setFailReason(""); }}>✕</Button>
-                        </div>
-                      ) : (
-                        <Button size="sm" variant="destructive" onClick={() => setFailReasonId(p.id)}>Fail</Button>
-                      )}
+                      <Button size="sm" variant="outline" onClick={() => { setReviewTarget({ id: p.id, status: "passed" }); setReviewNotes(""); }}>Pass</Button>
+                      <Button size="sm" variant="destructive" onClick={() => { setReviewTarget({ id: p.id, status: "failed" }); setReviewNotes(""); }}>Fail</Button>
                     </>
                   )}
                   {p.result_notes && <div className="text-xs text-muted-foreground italic max-w-[260px] prose prose-sm dark:prose-invert" dangerouslySetInnerHTML={renderSimpleMarkdown(p.result_notes)} />}
@@ -1013,6 +996,38 @@ function PracticalsTab() {
             ))}
           </div>
         ) : <p className="text-center py-8 text-muted-foreground">No practicals scheduled</p>}
+
+        <Dialog open={!!reviewTarget} onOpenChange={(open) => { if (!open) { setReviewTarget(null); setReviewNotes(""); } }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{reviewTarget?.status === "passed" ? "Mark Practical as Passed" : "Mark Practical as Failed"}</DialogTitle>
+              <DialogDescription>Add examiner remarks/notes for this result.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label>Remarks / Notes</Label>
+              <Textarea
+                value={reviewNotes}
+                onChange={(e) => setReviewNotes(e.target.value)}
+                placeholder="Enter remarks..."
+                rows={4}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setReviewTarget(null); setReviewNotes(""); }}>Cancel</Button>
+              <Button
+                variant={reviewTarget?.status === "failed" ? "destructive" : "default"}
+                onClick={() => {
+                  if (!reviewTarget) return;
+                  updateMutation.mutate({ id: reviewTarget.id, status: reviewTarget.status, result_notes: reviewNotes || undefined });
+                  setReviewTarget(null);
+                  setReviewNotes("");
+                }}
+              >
+                Confirm {reviewTarget?.status === "passed" ? "Pass" : "Fail"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
