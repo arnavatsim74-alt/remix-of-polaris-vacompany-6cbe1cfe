@@ -235,8 +235,8 @@ export default function AdminApplications() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-3 px-2 font-medium">Applicant</th>
-                    <th className="text-left py-3 px-2 font-medium">Experience</th>
-                    <th className="text-left py-3 px-2 font-medium">Simulator</th>
+                    <th className="text-left py-3 px-2 font-medium">IF Grade</th>
+                    <th className="text-left py-3 px-2 font-medium">IFATC</th>
                     <th className="text-left py-3 px-2 font-medium">Applied</th>
                     <th className="text-left py-3 px-2 font-medium">Status</th>
                     <th className="text-right py-3 px-2 font-medium">Actions</th>
@@ -251,8 +251,8 @@ export default function AdminApplications() {
                           <p className="text-xs text-muted-foreground">{app.email}</p>
                         </div>
                       </td>
-                      <td className="py-3 px-2 capitalize">{app.experience_level}</td>
-                      <td className="py-3 px-2">{app.preferred_simulator}</td>
+                      <td className="py-3 px-2">{app.if_grade || app.experience_level}</td>
+                      <td className="py-3 px-2">{app.is_ifatc || app.preferred_simulator}</td>
                       <td className="py-3 px-2">
                         {format(new Date(app.created_at), "MMM dd, yyyy")}
                       </td>
@@ -322,10 +322,14 @@ export default function AdminApplications() {
             <div className="p-4 bg-muted rounded-lg text-sm">
               <p><strong>Name:</strong> {selectedApp?.full_name}</p>
               <p><strong>Email:</strong> {selectedApp?.email}</p>
-              <p><strong>Experience:</strong> {selectedApp?.experience_level}</p>
-              <p><strong>Simulator:</strong> {selectedApp?.preferred_simulator}</p>
-              {selectedApp?.vatsim_id && <p><strong>IFC Username:</strong> {selectedApp?.vatsim_id}</p>}
-              {selectedApp?.ivao_id && <p><strong>Preferred Callsign:</strong> {selectedApp?.ivao_id}</p>}
+              <p><strong>Discord Username:</strong> {selectedApp?.discord_username || "N/A"}</p>
+              <p><strong>IF Grade:</strong> {selectedApp?.if_grade || selectedApp?.experience_level}</p>
+              <p><strong>IFATC:</strong> {selectedApp?.is_ifatc || selectedApp?.preferred_simulator}</p>
+              <p><strong>IFC Trust Level:</strong> {selectedApp?.ifc_trust_level || "N/A"}</p>
+              <p><strong>Age Range:</strong> {selectedApp?.age_range || "N/A"}</p>
+              <p><strong>Other VA/VO:</strong> {selectedApp?.other_va_membership || "N/A"}</p>
+              <p><strong>Heard About AFLV:</strong> {selectedApp?.hear_about_aflv || "N/A"}</p>
+              {selectedApp?.ifc_profile_url && <p><strong>IFC Profile URL:</strong> {selectedApp?.ifc_profile_url}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Assigned PID</label>
@@ -399,28 +403,40 @@ export default function AdminApplications() {
                 <p className="font-medium">{selectedApp?.email}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Experience</p>
-                <p className="font-medium capitalize">{selectedApp?.experience_level}</p>
+                <p className="text-muted-foreground">IF Grade</p>
+                <p className="font-medium">{selectedApp?.if_grade || selectedApp?.experience_level}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Simulator</p>
-                <p className="font-medium">{selectedApp?.preferred_simulator}</p>
+                <p className="text-muted-foreground">IFATC</p>
+                <p className="font-medium">{selectedApp?.is_ifatc || selectedApp?.preferred_simulator}</p>
               </div>
-              {selectedApp?.vatsim_id && (
-                <div>
-                  <p className="text-muted-foreground">IFC Username</p>
-                  <p className="font-medium">{selectedApp?.vatsim_id}</p>
-                </div>
-              )}
-              {selectedApp?.ivao_id && (
-                <div>
-                  <p className="text-muted-foreground">Preferred Callsign</p>
-                  <p className="font-medium">{selectedApp?.ivao_id}</p>
-                </div>
-              )}
+              <div>
+                <p className="text-muted-foreground">Discord Username</p>
+                <p className="font-medium">{selectedApp?.discord_username || "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">IFC Trust Level</p>
+                <p className="font-medium">{selectedApp?.ifc_trust_level || "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Age Range</p>
+                <p className="font-medium">{selectedApp?.age_range || "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Other VA/VO</p>
+                <p className="font-medium">{selectedApp?.other_va_membership || "N/A"}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-muted-foreground">IFC Profile URL</p>
+                <p className="font-medium break-all">{selectedApp?.ifc_profile_url || "N/A"}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-muted-foreground">Where did you hear about AFLV?</p>
+                <p className="font-medium">{selectedApp?.hear_about_aflv || "N/A"}</p>
+              </div>
             </div>
             <div>
-              <p className="text-muted-foreground text-sm mb-1">Reason for Joining</p>
+              <p className="text-muted-foreground text-sm mb-1">Why they want to join AFLV</p>
               <p className="text-sm bg-muted p-3 rounded-lg">{selectedApp?.reason_for_joining}</p>
             </div>
             {selectedApp?.status === "rejected" && selectedApp?.rejection_reason && (
