@@ -24,6 +24,15 @@ const RECRUITMENT_PRACTICAL_REVIEW_PREFIX = "recruitment_practical_review:";
 const RECRUITMENT_PRACTICAL_REVIEW_MODAL_PREFIX = "recruitment_practical_review_modal:";
 const RECRUITMENT_PRACTICAL_REVIEWER_ROLE_ID = "1427942885004808263";
 const RECRUITMENT_STAFF_ROLE_ID = "1427942885004808263";
+const ROLE_IDS_ON_PRACTICAL_PASS_ADD = [
+  "1427945161840787518",
+  "1427945314077118474",
+  "1427945404514963506",
+] as const;
+const ROLE_IDS_ON_PRACTICAL_PASS_REMOVE = [
+  "1432355201326518373",
+  "1427947293427892234",
+] as const;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
@@ -638,6 +647,40 @@ const discordApi = async (path: string, init: RequestInit = {}) => {
   });
 };
 
+const getGuildIdFromChannel = async (channelId: string) => {
+  if (!channelId) return null;
+  const response = await discordApi(`/channels/${channelId}`, { method: "GET" });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) return null;
+  return String(payload?.guild_id || "") || null;
+};
+
+const updatePilotRolesAfterPracticalPass = async (guildId: string, discordUserId: string) => {
+  if (!guildId || !discordUserId) return;
+
+  const memberResponse = await discordApi(`/guilds/${guildId}/members/${discordUserId}`, { method: "GET" });
+  const memberPayload = await memberResponse.json().catch(() => ({}));
+  if (!memberResponse.ok) {
+    throw new Error(memberPayload?.message || "Failed to fetch member for role update");
+  }
+
+  const currentRoles = Array.isArray(memberPayload?.roles) ? memberPayload.roles.map((r: any) => String(r)) : [];
+  const nextRoles = new Set(currentRoles);
+
+  for (const roleId of ROLE_IDS_ON_PRACTICAL_PASS_ADD) nextRoles.add(roleId);
+  for (const roleId of ROLE_IDS_ON_PRACTICAL_PASS_REMOVE) nextRoles.delete(roleId);
+
+  const patchResponse = await discordApi(`/guilds/${guildId}/members/${discordUserId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ roles: Array.from(nextRoles) }),
+  });
+
+  if (!patchResponse.ok) {
+    const patchPayload = await patchResponse.json().catch(() => ({}));
+    throw new Error(patchPayload?.message || "Failed to update member roles");
+  }
+};
+
 const createRecruitmentEmbed = async () => {
   const response = await discordApi(`/channels/${RECRUITMENTS_CHANNEL_ID}/messages`, {
     method: "POST",
@@ -833,7 +876,7 @@ const getLatestRecruitmentSessionForUser = async (userId: string) => {
   return session || null;
 };
 
-const applyPracticalStatus = async (practicalId: string, status: "passed" | "failed", remarks?: string) => {
+const applyPracticalStatus = async (practicalId: string, status: "passed" | "failed", remarks?: string, guildId?: string) => {
   const { data: practical, error: practicalError } = await supabase
     .from("academy_practicals")
     .select("id, pilot_id, course_id, notes, status, pilots!academy_practicals_pilot_id_fkey(id, user_id, pid, full_name, discord_user_id)")
@@ -894,6 +937,15 @@ Please read the Pilot Guide here: <#1428000030521823293>.`,
       }
     }
 
+    if (discordUserId) {
+      const resolvedGuildId = guildId || await getGuildIdFromChannel(channelId);
+      if (resolvedGuildId) {
+        await updatePilotRolesAfterPracticalPass(resolvedGuildId, discordUserId).catch((error) => {
+          console.error("Failed to update post-practical roles", error);
+        });
+      }
+    }
+
     return { action: "pass_notification_sent", practical, discordUserId, channelId };
   }
 
@@ -929,7 +981,7 @@ const handlePracticalStatusAction = async (body: any, authHeader: string | null)
   }
 
   try {
-    const result = await applyPracticalStatus(practicalId, status as "passed" | "failed", String(body?.remarks || ""));
+    const result = await applyPracticalStatus(practicalId, status as "passed" | "failed", String(body?.remarks || ""), String(body?.guildId || ""));
     return Response.json({ ok: true, action: result.action, adminUserId });
   } catch (error: any) {
     const message = error?.message || "Could not update practical status";
@@ -985,7 +1037,7 @@ const handlePracticalReviewModal = async (body: any, customId: string) => {
   const remarks = readModalInput(body, "review_remarks");
 
   try {
-    const result = await applyPracticalStatus(practicalId, status as "passed" | "failed", remarks);
+    const result = await applyPracticalStatus(practicalId, status as "passed" | "failed", remarks, String(body?.guild_id || ""));
     const color = status === "passed" ? COLORS.GREEN : COLORS.RED;
     const outcome = status === "passed" ? "PASSED" : "FAILED";
 
