@@ -1497,6 +1497,10 @@ export type Database = {
         Args: { p_email?: string | null; p_pid: string; p_token: string }
         Returns: Json
       }
+      set_recruitment_callsign_details: {
+        Args: { p_email?: string | null; p_pid: string; p_token: string }
+        Returns: Json
+      }
       finalize_recruitment_registration: {
         Args: { p_token: string }
         Returns: Json

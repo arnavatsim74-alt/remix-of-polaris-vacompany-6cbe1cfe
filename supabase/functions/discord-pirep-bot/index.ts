@@ -835,6 +835,17 @@ const getLatestRecruitmentSession = async (discordUserId: string) => {
   return fallback.data ? { ...fallback.data, exam_message_id: null } : null;
 };
 
+const getRecruitmentSessionByToken = async (token: string) => {
+  const { data, error } = await supabase
+    .from("recruitment_exam_sessions")
+    .select("id, discord_user_id, passed, completed_at")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+};
+
 const verifyAdminFromAuthHeader = async (authHeader: string | null) => {
   if (!authHeader?.startsWith("Bearer ")) return null;
   const token = authHeader.replace("Bearer ", "").trim();
@@ -1213,6 +1224,30 @@ const handleOpenCallsignModal = async (body: any, token: string) => {
     return Response.json({ type: 4, data: { content: "Recruitment session not found. Please restart from Fly High.", flags: 64 } });
   }
 
+  const session = await getRecruitmentSessionByToken(token);
+  if (!session) {
+    return Response.json({ type: 4, data: { content: "Recruitment session not found. Please click Fly High again.", flags: 64 } });
+  }
+
+  if (session.discord_user_id && String(session.discord_user_id) !== String(discordUserId)) {
+    return Response.json({ type: 4, data: { content: "This button belongs to another recruitment session.", flags: 64 } });
+  }
+
+  if (!session.passed) {
+    if (!session.completed_at) {
+      return Response.json({ type: 4, data: { content: "Please complete the written test first, then click Continue.", flags: 64 } });
+    }
+
+    const cooldownMinutes = await getLatestRecruitmentCooldown(String(discordUserId));
+    if (cooldownMinutes) {
+      const hours = Math.floor(cooldownMinutes / 60);
+      const minutes = cooldownMinutes % 60;
+      return Response.json({ type: 4, data: { content: `You failed the written test. Please wait ${hours}h ${minutes}m before retry.`, flags: 64 } });
+    }
+
+    return Response.json({ type: 4, data: { content: "Please complete and pass the written test first.", flags: 64 } });
+  }
+
   return Response.json({
     type: 9,
     data: {
@@ -1257,8 +1292,6 @@ const readModalInput = (body: any, customId: string) => {
 
 const handleSubmitCallsignModal = async (body: any, token: string) => {
   const discordUserId = body.member?.user?.id || body.user?.id;
-  const username = body.member?.user?.username || body.user?.username || "User";
-  const guildId = body.guild_id;
   if (!discordUserId) {
     return Response.json({ type: 4, data: { content: "Missing Discord user context.", flags: 64 } });
   }
@@ -1270,45 +1303,24 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
 
   const email = readModalInput(body, "contact_email").trim();
 
-  const { data, error } = await supabase.rpc("complete_recruitment_with_pid", {
+  const { data, error } = await supabase.rpc("set_recruitment_callsign_details", {
     p_token: token,
     p_pid: preferredPid,
     p_email: email || null,
   });
 
   if (error) {
-    return Response.json({ type: 4, data: { content: error.message || "Could not set callsign.", flags: 64 } });
-  }
-
-  if (data?.approved && guildId) {
-    await discordApi(`/guilds/${guildId}/members/${discordUserId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ nick: `[${preferredPid}] ${username}`.slice(0, 32) }),
-    }).catch(() => null);
-  }
-
-  if (data?.approved) {
-    return Response.json({
-      type: 4,
-      data: {
-        content: `✅ Callsign **${preferredPid}** saved and approved. Click below when you are ready for practical.`,
-        components: [{
-          type: 1,
-          components: [{
-            type: 2,
-            style: 3,
-            custom_id: `${RECRUITMENT_PRACTICAL_READY_PREFIX}${token}`,
-            label: "Yes, I am ready for practical",
-          }],
-        }],
-      },
-    });
+    const msg = String(error.message || "Could not set callsign.");
+    if (msg.toLowerCase().includes("callsign already taken")) {
+      return Response.json({ type: 4, data: { content: "This callsign is already taken. Please click Continue and choose another callsign.", flags: 64 } });
+    }
+    return Response.json({ type: 4, data: { content: msg, flags: 64 } });
   }
 
   return Response.json({
     type: 4,
     data: {
-      content: `✅ Callsign **${preferredPid}** saved. Now register/login at https://crew-aflv.vercel.app/ (prefer Discord login). Then click the button below to continue.`,
+      content: `✅ Callsign **${String(data?.pid || preferredPid)}** saved. Now register/login at https://crew-aflv.vercel.app/ (prefer Discord login). Then click the button below to continue.`,
       components: [{
         type: 1,
         components: [{
@@ -1326,6 +1338,24 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
 const handleRecruitmentPracticalConfirm = async (token: string) => {
   if (!token) {
     return Response.json({ type: 4, data: { content: "Recruitment session expired. Please press Continue again from latest message.", flags: 64 } });
+  }
+
+  const { data: finalState, error: finalError } = await supabase.rpc("finalize_recruitment_registration", {
+    p_token: token,
+  });
+
+  if (finalError) {
+    return Response.json({ type: 4, data: { content: finalError.message || "Could not verify registration status.", flags: 64 } });
+  }
+
+  if (!finalState?.approved) {
+    return Response.json({
+      type: 4,
+      data: {
+        content: "Please register on Crew Center first (Discord login or same email from callsign form), then click this button again.",
+        flags: 64,
+      },
+    });
   }
 
   return Response.json({
