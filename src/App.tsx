@@ -58,6 +58,7 @@ const App = () => (
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/apply" element={<ApplyPage />} />
+              <Route path="/academy/exam/:examId" element={<AcademyExam />} />
               <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route index element={<Dashboard />} />
                 <Route path="rotw" element={<RoutesOfTheWeek />} />
@@ -73,7 +74,6 @@ const App = () => (
                 <Route path="tracker" element={<Tracker />} />
                 <Route path="academy" element={<Academy />} />
                 <Route path="academy/course/:courseId" element={<AcademyCourse />} />
-                <Route path="academy/exam/:examId" element={<AcademyExam />} />
                 <Route path="activity" element={<ActivityPage />} />
                 <Route path="profile" element={<ProfileSettings />} />
                 <Route path="admin/pireps" element={<AdminPireps />} />

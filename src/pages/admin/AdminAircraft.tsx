@@ -28,8 +28,6 @@ interface AircraftForm {
 }
 
 
-const enumPilotRanks = ["cadet", "first_officer", "captain", "senior_captain", "commander"] as const;
-
 const formatRankLabel = (rank: string) => rank.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 const emptyForm: AircraftForm = {
@@ -63,15 +61,15 @@ export default function AdminAircraft() {
 
 
 
-  const rankOptions = (ranks && ranks.length > 0)
-    ? ranks
-        .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
-        .map((rank: any, index: number) => ({
-          name: enumPilotRanks[index] || null,
-          label: rank.label || formatRankLabel(rank.name || ""),
-        }))
-        .filter((rank: any) => !!rank.name)
-    : enumPilotRanks.map((name) => ({ name, label: formatRankLabel(name) }));
+  const rankOptions = (ranks || [])
+    .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
+    .map((rank: any) => ({
+      name: String(rank.name || "").trim(),
+      label: rank.label || formatRankLabel(String(rank.name || "")),
+    }))
+    .filter((rank: any) => !!rank.name);
+
+  const defaultRank = rankOptions[0]?.name || "cadet";
 
   const saveMutation = useMutation({
     mutationFn: async (data: AircraftForm & { id?: string }) => {
@@ -211,7 +209,7 @@ export default function AdminAircraft() {
               </div>
               <div className="space-y-2">
                 <Label>Minimum Rank Required</Label>
-                <Select value={rankOptions.some((r: any) => r.name === form.min_rank) ? form.min_rank : (rankOptions[0]?.name || "cadet")} onValueChange={(v) => setForm({ ...form, min_rank: v })}>
+                <Select value={rankOptions.some((r: any) => r.name === form.min_rank) ? form.min_rank : defaultRank} onValueChange={(v) => setForm({ ...form, min_rank: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {rankOptions.map((rank: any) => (
@@ -248,7 +246,11 @@ export default function AdminAircraft() {
                   toast.error("Please select a minimum rank");
                   return;
                 }
-                const safeRank = enumPilotRanks.includes(form.min_rank as any) ? form.min_rank : "cadet";
+                const safeRank = rankOptions.some((r: any) => r.name === form.min_rank) ? form.min_rank : defaultRank;
+                if (!safeRank) {
+                  toast.error("No rank options available. Please configure ranks first.");
+                  return;
+                }
                 saveMutation.mutate({ ...form, min_rank: safeRank, id: editingId || undefined });
               }} disabled={saveMutation.isPending}>
                 {editingId ? "Update" : "Create"}

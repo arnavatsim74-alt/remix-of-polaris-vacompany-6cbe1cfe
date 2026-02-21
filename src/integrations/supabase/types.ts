@@ -56,7 +56,7 @@ export type Database = {
       academy_enrollments: {
         Row: {
           completed_at: string | null
-          course_id: string
+          course_id: string | null
           enrolled_at: string | null
           id: string
           pilot_id: string
@@ -64,7 +64,7 @@ export type Database = {
         }
         Insert: {
           completed_at?: string | null
-          course_id: string
+          course_id?: string | null
           enrolled_at?: string | null
           id?: string
           pilot_id: string
@@ -72,7 +72,7 @@ export type Database = {
         }
         Update: {
           completed_at?: string | null
-          course_id?: string
+          course_id?: string | null
           enrolled_at?: string | null
           id?: string
           pilot_id?: string
@@ -183,7 +183,7 @@ export type Database = {
       }
       academy_exams: {
         Row: {
-          course_id: string
+          course_id: string | null
           created_at: string | null
           description: string | null
           id: string
@@ -194,7 +194,7 @@ export type Database = {
           title: string
         }
         Insert: {
-          course_id: string
+          course_id?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
@@ -205,7 +205,7 @@ export type Database = {
           title: string
         }
         Update: {
-          course_id?: string
+          course_id?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
@@ -340,7 +340,7 @@ export type Database = {
       academy_practicals: {
         Row: {
           completed_at: string | null
-          course_id: string
+          course_id: string | null
           created_at: string | null
           examiner_id: string | null
           id: string
@@ -353,7 +353,7 @@ export type Database = {
         }
         Insert: {
           completed_at?: string | null
-          course_id: string
+          course_id?: string | null
           created_at?: string | null
           examiner_id?: string | null
           id?: string
@@ -367,7 +367,7 @@ export type Database = {
         }
         Update: {
           completed_at?: string | null
-          course_id?: string
+          course_id?: string | null
           created_at?: string | null
           examiner_id?: string | null
           id?: string
@@ -923,13 +923,22 @@ export type Database = {
       }
       pilot_applications: {
         Row: {
+          age_range: string | null
           assigned_pid: string | null
           created_at: string | null
+          discord_user_id: string | null
+          discord_username: string | null
           email: string
           experience_level: string
           full_name: string
+          hear_about_aflv: string | null
           id: string
+          if_grade: string | null
+          ifc_profile_url: string | null
+          ifc_trust_level: string | null
+          is_ifatc: string | null
           ivao_id: string | null
+          other_va_membership: string | null
           preferred_simulator: string
           reason_for_joining: string
           rejection_reason: string | null
@@ -939,13 +948,22 @@ export type Database = {
           vatsim_id: string | null
         }
         Insert: {
+          age_range?: string | null
           assigned_pid?: string | null
           created_at?: string | null
+          discord_user_id?: string | null
+          discord_username?: string | null
           email: string
           experience_level: string
           full_name: string
+          hear_about_aflv?: string | null
           id?: string
+          if_grade?: string | null
+          ifc_profile_url?: string | null
+          ifc_trust_level?: string | null
+          is_ifatc?: string | null
           ivao_id?: string | null
+          other_va_membership?: string | null
           preferred_simulator: string
           reason_for_joining: string
           rejection_reason?: string | null
@@ -955,13 +973,22 @@ export type Database = {
           vatsim_id?: string | null
         }
         Update: {
+          age_range?: string | null
           assigned_pid?: string | null
           created_at?: string | null
+          discord_user_id?: string | null
+          discord_username?: string | null
           email?: string
           experience_level?: string
           full_name?: string
+          hear_about_aflv?: string | null
           id?: string
+          if_grade?: string | null
+          ifc_profile_url?: string | null
+          ifc_trust_level?: string | null
+          is_ifatc?: string | null
           ivao_id?: string | null
+          other_va_membership?: string | null
           preferred_simulator?: string
           reason_for_joining?: string
           rejection_reason?: string | null
@@ -1001,7 +1028,80 @@ export type Database = {
           },
         ]
       }
+      recruitment_exam_sessions: {
+        Row: {
+          application_id: string | null
+          auth_user_id: string | null
+          completed_at: string | null
+          discord_user_id: string | null
+          pending_email: string | null
+          preferred_pid: string | null
+          practical_assigned_at: string | null
+          retest_sent_at: string | null
+          created_at: string
+          exam_message_id: string | null
+          recruitment_channel_id: string | null
+          exam_id: string
+          id: string
+          passed: boolean | null
+          score: number | null
+          token: string
+        }
+        Insert: {
+          application_id?: string | null
+          auth_user_id?: string | null
+          completed_at?: string | null
+          discord_user_id?: string | null
+          pending_email?: string | null
+          preferred_pid?: string | null
+          practical_assigned_at?: string | null
+          retest_sent_at?: string | null
+          created_at?: string
+          exam_message_id?: string | null
+          recruitment_channel_id?: string | null
+          exam_id: string
+          id?: string
+          passed?: boolean | null
+          score?: number | null
+          token: string
+        }
+        Update: {
+          application_id?: string | null
+          auth_user_id?: string | null
+          completed_at?: string | null
+          discord_user_id?: string | null
+          pending_email?: string | null
+          preferred_pid?: string | null
+          practical_assigned_at?: string | null
+          retest_sent_at?: string | null
+          created_at?: string
+          exam_message_id?: string | null
+          recruitment_channel_id?: string | null
+          exam_id?: string
+          id?: string
+          passed?: boolean | null
+          score?: number | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_exam_sessions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "pilot_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_exam_sessions_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "academy_exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pilot_streaks: {
+
         Row: {
           current_streak: number | null
           id: string
@@ -1373,6 +1473,10 @@ export type Database = {
     }
     Functions: {
       calculate_rank: { Args: { hours: number }; Returns: string }
+      can_access_recruitment_exam: {
+        Args: { p_token: string; p_user_id: string }
+        Returns: boolean
+      }
       check_and_assign_admin_role: {
         Args: { user_email: string; user_id_param: string }
         Returns: boolean
@@ -1388,6 +1492,26 @@ export type Database = {
           pilot_id: string
           registered_at: string | null
         }
+      }
+      complete_recruitment_with_pid: {
+        Args: { p_email?: string | null; p_pid: string; p_token: string }
+        Returns: Json
+      }
+      set_recruitment_callsign_details: {
+        Args: { p_email?: string | null; p_pid: string; p_token: string }
+        Returns: Json
+      }
+      finalize_recruitment_registration: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      assign_recruitment_practical: {
+        Args: { p_token: string }
+        Returns: Json
+      }
+      submit_recruitment_exam: {
+        Args: { p_passed: boolean; p_score: number; p_token: string }
+        Returns: Json
       }
       has_role: {
         Args: {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,7 +17,16 @@ import { PolarisFooter } from "@/components/PolarisFooter";
 const applicationSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters").optional(),
+  discordUsername: z.string().min(2, "Discord username is required"),
+  ifGrade: z.enum(["Grade 2", "Grade 3", "Grade 4", "Grade 5"]),
+  isIfatc: z.enum(["Yes", "No"]),
+  ifcTrustLevel: z.enum(["Basic User (TL1)", "Member (TL2)", "Regular (TL3)", "Leader (TL4)", "I don't know"]),
+  ageRange: z.enum(["13-16", "17-21", "22-27", "28-34", "35-41", "42-50", "51-60", "Above"]),
+  ifcProfileUrl: z.string().url("Please enter a valid IFC profile URL").or(z.literal("")),
+  otherVaMembership: z.string().min(2, "Please answer if you are a member of another VA or VO"),
+  whyJoinAflv: z.string().min(10, "Please share why you want to join AFLV"),
+  hearAboutAflv: z.string().min(2, "Please share where you heard about AFLV"),
 });
 
 type ApplicationStatus = "idle" | "pending" | "approved" | "rejected";
@@ -26,13 +35,18 @@ export default function ApplyPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [vatsimId, setVatsimId] = useState("");
-  const [ivaoId, setIvaoId] = useState("");
+  const [discordUsername, setDiscordUsername] = useState("");
+  const [ifGrade, setIfGrade] = useState("Grade 2");
+  const [isIfatc, setIsIfatc] = useState("No");
+  const [ifcTrustLevel, setIfcTrustLevel] = useState("I don't know");
+  const [ageRange, setAgeRange] = useState("13-16");
+  const [ifcProfileUrl, setIfcProfileUrl] = useState("");
+  const [otherVaMembership, setOtherVaMembership] = useState("");
+  const [whyJoinAflv, setWhyJoinAflv] = useState("");
+  const [hearAboutAflv, setHearAboutAflv] = useState("");
   
   const [isLoading, setIsLoading] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState<ApplicationStatus>("idle");
-  const [isAutoSubmittingDiscord, setIsAutoSubmittingDiscord] = useState(false);
-  const discordAutoSubmitRan = useRef(false);
   const { user, signUp, signInWithDiscord } = useAuth();
   const [searchParams] = useSearchParams();
   const isDiscordRegisterFlow = useMemo(() => {
@@ -48,12 +62,24 @@ export default function ApplyPage() {
 
       const { data } = await supabase
         .from("pilot_applications")
-        .select("status")
+        .select("status, discord_username, if_grade, is_ifatc, ifc_trust_level, age_range, other_va_membership, hear_about_aflv")
         .eq("user_id", user.id)
         .single();
 
       if (data) {
-        setApplicationStatus(data.status as ApplicationStatus);
+        const hasExtendedDetails = Boolean(
+          data.discord_username
+          && data.if_grade
+          && data.is_ifatc
+          && data.ifc_trust_level
+          && data.age_range
+          && data.other_va_membership
+          && data.hear_about_aflv
+        );
+
+        if (data.status === "approved" || data.status === "rejected" || hasExtendedDetails) {
+          setApplicationStatus(data.status as ApplicationStatus);
+        }
       }
     };
 
@@ -63,10 +89,21 @@ export default function ApplyPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const isExistingDiscordUser = !!user && isDiscordRegisterFlow;
+
     const validation = applicationSchema.safeParse({
       fullName,
       email,
-      password,
+      password: isExistingDiscordUser ? undefined : password,
+      discordUsername,
+      ifGrade,
+      isIfatc,
+      ifcTrustLevel,
+      ageRange,
+      ifcProfileUrl,
+      otherVaMembership,
+      whyJoinAflv,
+      hearAboutAflv,
     });
 
     if (!validation.success) {
@@ -77,37 +114,60 @@ export default function ApplyPage() {
     setIsLoading(true);
 
     try {
-      // First create the account
-      const { error: signUpError } = await signUp(email, password);
+      let applicantUserId = user?.id;
+      let applicantEmail = email;
 
-      if (signUpError) {
-        if (signUpError.message.includes("already registered")) {
-          toast.error("This email is already registered. Please sign in instead.");
-        } else {
-          toast.error(signUpError.message);
+      if (!isExistingDiscordUser) {
+        // First create the account
+        const { error: signUpError } = await signUp(email, password);
+
+        if (signUpError) {
+          if (signUpError.message.includes("already registered")) {
+            toast.error("This email is already registered. Please sign in instead.");
+          } else {
+            toast.error(signUpError.message);
+          }
+          return;
         }
-        return;
+
+        // Get the newly created user
+        const { data: { user: newUser } } = await supabase.auth.getUser();
+
+        if (!newUser) {
+          toast.error("Failed to create account");
+          return;
+        }
+
+        applicantUserId = newUser.id;
+      } else {
+        const metadataEmail = typeof user?.user_metadata?.email === "string" ? user.user_metadata.email : null;
+        applicantEmail = user?.email || metadataEmail || `discord-${user?.id}@users.noreply.local`;
       }
 
-      // Get the newly created user
-      const { data: { user: newUser } } = await supabase.auth.getUser();
-
-      if (!newUser) {
-        toast.error("Failed to create account");
+      if (!applicantUserId) {
+        toast.error("Failed to determine account for this application");
         return;
       }
 
       // Submit application
-      const { error: appError } = await supabase.from("pilot_applications").insert({
-        user_id: newUser.id,
-        email,
+      const { error: appError } = await supabase.from("pilot_applications").upsert({
+        user_id: applicantUserId,
+        email: applicantEmail,
         full_name: fullName,
-        vatsim_id: vatsimId || null,
-        ivao_id: ivaoId || null,
-        experience_level: "N/A",
-        preferred_simulator: "N/A",
-        reason_for_joining: "N/A",
-      });
+        vatsim_id: null,
+        ivao_id: null,
+        experience_level: ifGrade,
+        preferred_simulator: isIfatc,
+        reason_for_joining: whyJoinAflv,
+        discord_username: discordUsername,
+        if_grade: ifGrade,
+        is_ifatc: isIfatc,
+        ifc_trust_level: ifcTrustLevel,
+        age_range: ageRange,
+        ifc_profile_url: ifcProfileUrl || null,
+        other_va_membership: otherVaMembership,
+        hear_about_aflv: hearAboutAflv,
+      }, { onConflict: "user_id" });
 
       if (appError) {
         toast.error("Failed to submit application");
@@ -147,91 +207,25 @@ export default function ApplyPage() {
 
 
   useEffect(() => {
-    const autoSubmitDiscordApplication = async () => {
-      if (!user || discordAutoSubmitRan.current) return;
-
-      const hasDiscordIdentity = user.identities?.some((identity) => identity.provider === "discord")
-        || user.app_metadata?.provider === "discord"
-        || (Array.isArray(user.app_metadata?.providers) && user.app_metadata.providers.includes("discord"));
-      if (!hasDiscordIdentity && !isDiscordRegisterFlow) return;
-
-      setIsAutoSubmittingDiscord(true);
-
-      try {
-        const [{ data: existingApplication }, { data: existingPilot }] = await Promise.all([
-          supabase
-            .from("pilot_applications")
-            .select("status")
-            .eq("user_id", user.id)
-            .maybeSingle(),
-          supabase
-            .from("pilots")
-            .select("id")
-            .eq("user_id", user.id)
-            .maybeSingle(),
-        ]);
-
-        if (existingPilot?.id) {
-          setApplicationStatus("approved");
-          if (typeof window !== "undefined") {
-            window.sessionStorage.removeItem("discord_oauth_mode");
-          }
-          return;
-        }
-
-        if (existingApplication?.status) {
-          setApplicationStatus(existingApplication.status as ApplicationStatus);
-          if (typeof window !== "undefined") {
-            window.sessionStorage.removeItem("discord_oauth_mode");
-          }
-          return;
-        }
-
-        const metadata = user.user_metadata || {};
-        const fullName =
-          metadata.full_name ||
-          metadata.name ||
-          metadata.global_name ||
-          metadata.preferred_username ||
-          user.email?.split("@")[0] ||
-          "Discord Pilot";
-
-        const emailFromMetadata = typeof metadata.email === "string" ? metadata.email : null;
-        const fallbackEmail = emailFromMetadata || user.email || `discord-${user.id}@users.noreply.local`;
-
-        const { error } = await supabase.from("pilot_applications").upsert({
-          user_id: user.id,
-          email: fallbackEmail,
-          full_name: fullName,
-          vatsim_id: null,
-          ivao_id: null,
-          experience_level: "N/A",
-          preferred_simulator: "N/A",
-          reason_for_joining: "Signed up with Discord OAuth",
-          status: "pending",
-        }, { onConflict: "user_id" });
-
-        if (error) {
-          toast.error("Discord sign up succeeded, but creating your application failed. Please fill the form manually.");
-          console.error("Discord application insert error:", error);
-          return;
-        }
-
-        setApplicationStatus("pending");
-        if (typeof window !== "undefined") {
-          window.sessionStorage.removeItem("discord_oauth_mode");
-        }
-        toast.success("Discord account connected. Application submitted for admin review.");
-      } catch (error) {
-        console.error("Discord auto application error:", error);
-      } finally {
-        discordAutoSubmitRan.current = true;
-        setIsAutoSubmittingDiscord(false);
+    if (!user) return;
+    const metadata = user.user_metadata || {};
+    const discordFromMetadata = metadata.preferred_username || metadata.global_name || metadata.name || "";
+    if (discordFromMetadata && !discordUsername) {
+      setDiscordUsername(String(discordFromMetadata));
+    }
+    if (!fullName) {
+      const fullNameFromMetadata = metadata.full_name || metadata.name || metadata.global_name || "";
+      if (fullNameFromMetadata) {
+        setFullName(String(fullNameFromMetadata));
       }
-    };
-
-    autoSubmitDiscordApplication();
-  }, [user, isDiscordRegisterFlow]);
+    }
+    if (!email) {
+      const metadataEmail = typeof metadata.email === "string" ? metadata.email : user.email || "";
+      if (metadataEmail) {
+        setEmail(metadataEmail);
+      }
+    }
+  }, [user, discordUsername, fullName, email]);
 
   if (applicationStatus === "pending") {
     return (
@@ -307,8 +301,8 @@ export default function ApplyPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {isAutoSubmittingDiscord && (
-                <p className="text-sm text-muted-foreground">Finishing Discord registration and creating your application...</p>
+              {isDiscordRegisterFlow && user && (
+                <p className="text-sm text-muted-foreground">Discord account connected. Complete the full application below to continue.</p>
               )}
               {/* Personal Information */}
               <div className="space-y-4">
@@ -332,53 +326,107 @@ export default function ApplyPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={isLoading}
+                      readOnly={isDiscordRegisterFlow && !!user}
                       required
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password *</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Minimum 6 characters"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
+                {!user && (
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password *</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Minimum 6 characters"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={isLoading}
+                      required
+                    />
+                  </div>
+                )}
               </div>
 
-              {/* Infinite Flight Details */}
+              {/* Application Details */}
               <div className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground">Infinite Flight Details (Optional)</h3>
+                <h3 className="text-sm font-medium text-muted-foreground">Application Details</h3>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="vatsimId">IFC Username</Label>
+                    <Label htmlFor="discordUsername">Discord Username *</Label>
                     <Input
-                      id="vatsimId"
-                      placeholder="Your Infinite Flight Community username"
-                      value={vatsimId}
-                      onChange={(e) => setVatsimId(e.target.value)}
+                      id="discordUsername"
+                      value={discordUsername}
+                      onChange={(e) => setDiscordUsername(e.target.value)}
                       disabled={isLoading}
+                      required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="ivaoId">Preferred Callsign</Label>
+                    <Label htmlFor="ifGrade">IF Grade (you should be Grade 2 to join) *</Label>
+                    <select id="ifGrade" className="w-full rounded-md border bg-background px-3 py-2 text-sm" value={ifGrade} onChange={(e) => setIfGrade(e.target.value)} disabled={isLoading} required>
+                      <option>Grade 2</option>
+                      <option>Grade 3</option>
+                      <option>Grade 4</option>
+                      <option>Grade 5</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="isIfatc">Are you IFATC? *</Label>
+                    <select id="isIfatc" className="w-full rounded-md border bg-background px-3 py-2 text-sm" value={isIfatc} onChange={(e) => setIsIfatc(e.target.value)} disabled={isLoading} required>
+                      <option>Yes</option>
+                      <option>No</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ifcTrustLevel">Your IFC trust level? *</Label>
+                    <select id="ifcTrustLevel" className="w-full rounded-md border bg-background px-3 py-2 text-sm" value={ifcTrustLevel} onChange={(e) => setIfcTrustLevel(e.target.value)} disabled={isLoading} required>
+                      <option>Basic User (TL1)</option>
+                      <option>Member (TL2)</option>
+                      <option>Regular (TL3)</option>
+                      <option>Leader (TL4)</option>
+                      <option>I don't know</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ageRange">How old are you? (You should be 13 years old to join) *</Label>
+                    <select id="ageRange" className="w-full rounded-md border bg-background px-3 py-2 text-sm" value={ageRange} onChange={(e) => setAgeRange(e.target.value)} disabled={isLoading} required>
+                      <option>13-16</option>
+                      <option>17-21</option>
+                      <option>22-27</option>
+                      <option>28-34</option>
+                      <option>35-41</option>
+                      <option>42-50</option>
+                      <option>51-60</option>
+                      <option>Above</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="ifcProfileUrl">Your IFC profile URL</Label>
                     <Input
-                      id="ivaoId"
-                      placeholder="Your preferred callsign"
-                      value={ivaoId}
-                      onChange={(e) => setIvaoId(e.target.value)}
+                      id="ifcProfileUrl"
+                      placeholder="https://community.infiniteflight.com/u/your-profile"
+                      value={ifcProfileUrl}
+                      onChange={(e) => setIfcProfileUrl(e.target.value)}
                       disabled={isLoading}
                     />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="otherVaMembership">Are you member of any other VA or VO? *</Label>
+                    <Input id="otherVaMembership" value={otherVaMembership} onChange={(e) => setOtherVaMembership(e.target.value)} disabled={isLoading} required />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="whyJoinAflv">Why you want to join AFLV? *</Label>
+                    <Input id="whyJoinAflv" value={whyJoinAflv} onChange={(e) => setWhyJoinAflv(e.target.value)} disabled={isLoading} required />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="hearAboutAflv">Where did you hear about AFLV? *</Label>
+                    <Input id="hearAboutAflv" value={hearAboutAflv} onChange={(e) => setHearAboutAflv(e.target.value)} disabled={isLoading} required />
                   </div>
                 </div>
               </div>
 
 
-              <Button type="submit" className="w-full" disabled={isLoading || isAutoSubmittingDiscord}>
+              <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Submit Application
               </Button>
@@ -393,7 +441,7 @@ export default function ApplyPage() {
                   </div>
                 </div>
 
-                <Button type="button" variant="outline" className="w-full" disabled={isLoading || isAutoSubmittingDiscord} onClick={handleDiscordRegister}>
+                <Button type="button" variant="outline" className="w-full" disabled={isLoading} onClick={handleDiscordRegister}>
                   <DiscordIcon className="mr-2 h-4 w-4" />
                   Register with Discord
                 </Button>
