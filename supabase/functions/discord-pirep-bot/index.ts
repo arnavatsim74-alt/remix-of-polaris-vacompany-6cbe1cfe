@@ -19,7 +19,9 @@ const RECRUITMENT_BUTTON_CUSTOM_ID = "recruitment_fly_high";
 const RECRUITMENT_CALLSIGN_BUTTON_PREFIX = "recruitment_set_callsign:";
 const RECRUITMENT_CALLSIGN_MODAL_PREFIX = "recruitment_callsign_modal:";
 const RECRUITMENT_PRACTICAL_READY_PREFIX = "recruitment_practical_ready:";
+const RECRUITMENT_PRACTICAL_CONFIRM_PREFIX = "recruitment_practical_confirm:";
 const RECRUITMENT_PRACTICAL_REVIEW_PREFIX = "recruitment_practical_review:";
+const RECRUITMENT_PRACTICAL_REVIEW_MODAL_PREFIX = "recruitment_practical_review_modal:";
 const RECRUITMENT_PRACTICAL_REVIEWER_ROLE_ID = "1427942885004808263";
 const RECRUITMENT_STAFF_ROLE_ID = "1427942885004808263";
 
@@ -831,7 +833,7 @@ const getLatestRecruitmentSessionForUser = async (userId: string) => {
   return session || null;
 };
 
-const applyPracticalStatus = async (practicalId: string, status: "passed" | "failed") => {
+const applyPracticalStatus = async (practicalId: string, status: "passed" | "failed", remarks?: string) => {
   const { data: practical, error: practicalError } = await supabase
     .from("academy_practicals")
     .select("id, pilot_id, course_id, notes, status, pilots!academy_practicals_pilot_id_fkey(id, user_id, pid, full_name, discord_user_id)")
@@ -845,7 +847,7 @@ const applyPracticalStatus = async (practicalId: string, status: "passed" | "fai
   const updatePayload: Record<string, any> = {
     status,
     completed_at: new Date().toISOString(),
-    result_notes: status === "passed" ? "Passed via recruitment Discord review action" : "Failed via recruitment Discord review action",
+    result_notes: (remarks || "").trim() || (status === "passed" ? "Passed via recruitment Discord review action" : "Failed via recruitment Discord review action"),
   };
 
   const { error: updateError } = await supabase
@@ -863,6 +865,18 @@ const applyPracticalStatus = async (practicalId: string, status: "passed" | "fai
   const channelId = String(latestSession?.recruitment_channel_id || "");
 
   if (status === "passed") {
+    let deleteQuery = supabase
+      .from("recruitment_exam_sessions")
+      .delete()
+      .eq("auth_user_id", String(pilot.user_id));
+    if (discordUserId) {
+      deleteQuery = supabase
+        .from("recruitment_exam_sessions")
+        .delete()
+        .or(`auth_user_id.eq.${String(pilot.user_id)},discord_user_id.eq.${discordUserId}`);
+    }
+    await deleteQuery;
+
     if (channelId) {
       await discordApi(`/channels/${channelId}/messages`, {
         method: "POST",
@@ -915,7 +929,7 @@ const handlePracticalStatusAction = async (body: any, authHeader: string | null)
   }
 
   try {
-    const result = await applyPracticalStatus(practicalId, status as "passed" | "failed");
+    const result = await applyPracticalStatus(practicalId, status as "passed" | "failed", String(body?.remarks || ""));
     return Response.json({ ok: true, action: result.action, adminUserId });
   } catch (error: any) {
     const message = error?.message || "Could not update practical status";
@@ -935,13 +949,48 @@ const handlePracticalReviewButton = async (body: any, customId: string) => {
     return Response.json({ type: 4, data: { content: "Invalid practical review action.", flags: 64 } });
   }
 
+  return Response.json({
+    type: 9,
+    data: {
+      custom_id: `${RECRUITMENT_PRACTICAL_REVIEW_MODAL_PREFIX}${status}:${practicalId}`.slice(0, 100),
+      title: `Practical ${status === "passed" ? "Pass" : "Fail"} Remarks`,
+      components: [{
+        type: 1,
+        components: [{
+          type: 4,
+          custom_id: "review_remarks",
+          label: "Remarks / Notes",
+          style: 2,
+          required: false,
+          max_length: 1000,
+          placeholder: "Optional remarks for this result...",
+        }],
+      }],
+    },
+  });
+};
+
+const handlePracticalReviewModal = async (body: any, customId: string) => {
+  const memberRoles = body.member?.roles || [];
+  if (!memberRoles.includes(RECRUITMENT_PRACTICAL_REVIEWER_ROLE_ID)) {
+    return Response.json({ type: 4, data: { content: "You are not allowed to review practicals.", flags: 64 } });
+  }
+
+  const payload = customId.slice(RECRUITMENT_PRACTICAL_REVIEW_MODAL_PREFIX.length);
+  const [status, practicalId] = payload.split(":");
+  if (!practicalId || !["passed", "failed"].includes(status)) {
+    return Response.json({ type: 4, data: { content: "Invalid practical review action.", flags: 64 } });
+  }
+
+  const remarks = readModalInput(body, "review_remarks");
+
   try {
-    const result = await applyPracticalStatus(practicalId, status as "passed" | "failed");
+    const result = await applyPracticalStatus(practicalId, status as "passed" | "failed", remarks);
     const color = status === "passed" ? COLORS.GREEN : COLORS.RED;
     const outcome = status === "passed" ? "PASSED" : "FAILED";
 
     return Response.json({
-      type: 7,
+      type: 4,
       data: {
         embeds: [{
           title: "AFLV | Practical Review",
@@ -951,10 +1000,10 @@ const handlePracticalReviewButton = async (body: any, customId: string) => {
           fields: [
             { name: "Pilot", value: result.discordUserId ? `<@${result.discordUserId}>` : String((result.practical as any)?.pilots?.full_name || "Unknown"), inline: true },
             { name: "Practical ID", value: practicalId, inline: false },
+            ...(remarks?.trim() ? [{ name: "Remarks", value: remarks.trim().slice(0, 1024), inline: false }] : []),
           ],
           timestamp: new Date().toISOString(),
         }],
-        components: [],
       },
     });
   } catch (error: any) {
@@ -1213,7 +1262,7 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
         components: [{
           type: 2,
           style: 1,
-          custom_id: `${RECRUITMENT_PRACTICAL_READY_PREFIX}${token}`,
+          custom_id: `${RECRUITMENT_PRACTICAL_CONFIRM_PREFIX}${token}`,
           label: "I have registered, continue",
         }],
       }],
@@ -1221,6 +1270,28 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
   });
 };
 
+
+const handleRecruitmentPracticalConfirm = async (token: string) => {
+  if (!token) {
+    return Response.json({ type: 4, data: { content: "Recruitment session expired. Please press Continue again from latest message.", flags: 64 } });
+  }
+
+  return Response.json({
+    type: 7,
+    data: {
+      content: "Confirm to let the bot assign your practical now.",
+      components: [{
+        type: 1,
+        components: [{
+          type: 2,
+          style: 3,
+          custom_id: `${RECRUITMENT_PRACTICAL_READY_PREFIX}${token}`,
+          label: "Yes, assign practical now",
+        }],
+      }],
+    },
+  });
+};
 
 const buildPracticalAssignedInteraction = (pidInput: string, practicalIdInput: string) => {
   const pid = String(pidInput || "AFLV");
@@ -1423,6 +1494,13 @@ const handleRecruitmentPracticalReady = async (body: any, token: string) => {
     }
   }
 
+  if (data?.already_assigned) {
+    return Response.json({
+      type: 4,
+      data: { content: "Practical already assigned. Please complete it and wait for staff review.", flags: 64 },
+    });
+  }
+
   if (data?.ok === false) {
     return Response.json({ type: 4, data: { content: String(data?.message || "Could not assign practical."), flags: 64 } });
   }
@@ -1501,6 +1579,7 @@ serve(async (req) => {
       if (customId.startsWith("challenge_accept:")) return handleAcceptChallengeButton(body, customId.slice("challenge_accept:".length));
       if (customId === RECRUITMENT_BUTTON_CUSTOM_ID) return handleRecruitmentButton(body);
       if (customId.startsWith(RECRUITMENT_CALLSIGN_BUTTON_PREFIX)) return handleOpenCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_BUTTON_PREFIX.length));
+      if (customId.startsWith(RECRUITMENT_PRACTICAL_CONFIRM_PREFIX)) return handleRecruitmentPracticalConfirm(customId.slice(RECRUITMENT_PRACTICAL_CONFIRM_PREFIX.length));
       if (customId.startsWith(RECRUITMENT_PRACTICAL_READY_PREFIX)) return handleRecruitmentPracticalReady(body, customId.slice(RECRUITMENT_PRACTICAL_READY_PREFIX.length));
       if (customId.startsWith(RECRUITMENT_PRACTICAL_REVIEW_PREFIX)) return handlePracticalReviewButton(body, customId);
     } catch (error: any) {
@@ -1514,6 +1593,9 @@ serve(async (req) => {
     try {
       if (customId.startsWith(RECRUITMENT_CALLSIGN_MODAL_PREFIX)) {
         return handleSubmitCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_MODAL_PREFIX.length));
+      }
+      if (customId.startsWith(RECRUITMENT_PRACTICAL_REVIEW_MODAL_PREFIX)) {
+        return handlePracticalReviewModal(body, customId);
       }
     } catch (error: any) {
       return Response.json({ type: 4, data: { content: error?.message || "Modal action failed", flags: 64 } });
