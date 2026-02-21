@@ -1134,7 +1134,7 @@ const handleOpenCallsignModal = async (body: any, token: string) => {
         components: [{
           type: 4,
           custom_id: "contact_email",
-          label: "Registration Email (if not using Discord login)",
+          label: "Registration Email (if not Discord)",
           style: 1,
           required: false,
           placeholder: "name@example.com",
