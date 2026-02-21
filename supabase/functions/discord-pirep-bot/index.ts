@@ -19,7 +19,6 @@ const RECRUITMENT_BUTTON_CUSTOM_ID = "recruitment_fly_high";
 const RECRUITMENT_CALLSIGN_BUTTON_PREFIX = "recruitment_set_callsign:";
 const RECRUITMENT_CALLSIGN_MODAL_PREFIX = "recruitment_callsign_modal:";
 const RECRUITMENT_PRACTICAL_READY_PREFIX = "recruitment_practical_ready:";
-const RECRUITMENT_PRACTICAL_CONFIRM_PREFIX = "recruitment_practical_confirm:";
 const RECRUITMENT_PRACTICAL_REVIEW_PREFIX = "recruitment_practical_review:";
 const RECRUITMENT_PRACTICAL_REVIEWER_ROLE_ID = "1427942885004808263";
 const RECRUITMENT_STAFF_ROLE_ID = "1427942885004808263";
@@ -1214,7 +1213,7 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
         components: [{
           type: 2,
           style: 1,
-          custom_id: `${RECRUITMENT_PRACTICAL_CONFIRM_PREFIX}${token}`,
+          custom_id: `${RECRUITMENT_PRACTICAL_READY_PREFIX}${token}`,
           label: "I have registered, continue",
         }],
       }],
@@ -1222,23 +1221,6 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
   });
 };
 
-const handleRecruitmentPracticalConfirm = async (_body: any, token: string) => {
-  return Response.json({
-    type: 4,
-    data: {
-      content: "Please confirm you are fully ready for practical assignment.",
-      components: [{
-        type: 1,
-        components: [{
-          type: 2,
-          style: 3,
-          custom_id: `${RECRUITMENT_PRACTICAL_READY_PREFIX}${token}`,
-          label: "Yes, I am ready for practical",
-        }],
-      }],
-    },
-  });
-};
 
 const buildPracticalAssignedInteraction = (pidInput: string, practicalIdInput: string) => {
   const pid = String(pidInput || "AFLV");
@@ -1293,6 +1275,10 @@ const buildPracticalAssignedInteraction = (pidInput: string, practicalIdInput: s
 };
 
 const handleRecruitmentPracticalReady = async (body: any, token: string) => {
+  if (!token) {
+    return Response.json({ type: 4, data: { content: "Recruitment session expired. Please press Continue again from latest message.", flags: 64 } });
+  }
+
   const discordUserId = body.member?.user?.id || body.user?.id;
   if (!discordUserId) {
     return Response.json({ type: 4, data: { content: "Missing Discord user context.", flags: 64 } });
@@ -1515,7 +1501,6 @@ serve(async (req) => {
       if (customId.startsWith("challenge_accept:")) return handleAcceptChallengeButton(body, customId.slice("challenge_accept:".length));
       if (customId === RECRUITMENT_BUTTON_CUSTOM_ID) return handleRecruitmentButton(body);
       if (customId.startsWith(RECRUITMENT_CALLSIGN_BUTTON_PREFIX)) return handleOpenCallsignModal(body, customId.slice(RECRUITMENT_CALLSIGN_BUTTON_PREFIX.length));
-      if (customId.startsWith(RECRUITMENT_PRACTICAL_CONFIRM_PREFIX)) return handleRecruitmentPracticalConfirm(body, customId.slice(RECRUITMENT_PRACTICAL_CONFIRM_PREFIX.length));
       if (customId.startsWith(RECRUITMENT_PRACTICAL_READY_PREFIX)) return handleRecruitmentPracticalReady(body, customId.slice(RECRUITMENT_PRACTICAL_READY_PREFIX.length));
       if (customId.startsWith(RECRUITMENT_PRACTICAL_REVIEW_PREFIX)) return handlePracticalReviewButton(body, customId);
     } catch (error: any) {
