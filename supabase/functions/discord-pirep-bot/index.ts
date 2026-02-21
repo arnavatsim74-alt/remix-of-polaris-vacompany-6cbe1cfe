@@ -1291,7 +1291,7 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
     return Response.json({
       type: 4,
       data: {
-        content: `✅ Approved! Callsign **${preferredPid}** assigned. Click below when you are ready for practical.`,
+        content: `✅ Callsign **${preferredPid}** saved and approved. Click below when you are ready for practical.`,
         components: [{
           type: 1,
           components: [{
@@ -1308,7 +1308,7 @@ const handleSubmitCallsignModal = async (body: any, token: string) => {
   return Response.json({
     type: 4,
     data: {
-      content: `📝 Callsign saved as **${preferredPid}**. Now register/login at https://crew-aflv.vercel.app/ (prefer Discord login). Then click the button below to continue.`,
+      content: `✅ Callsign **${preferredPid}** saved. Now register/login at https://crew-aflv.vercel.app/ (prefer Discord login). Then click the button below to continue.`,
       components: [{
         type: 1,
         components: [{
