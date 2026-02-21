@@ -13,7 +13,9 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
   const { user, pilot, isAdmin, isLoading } = useAuth();
   const location = useLocation();
   const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
+  const [hasRecruitmentExamAccess, setHasRecruitmentExamAccess] = useState(false);
   const [isCheckingApplication, setIsCheckingApplication] = useState(false);
+  const [isCheckingRecruitmentAccess, setIsCheckingRecruitmentAccess] = useState(false);
 
   useEffect(() => {
     const checkApplication = async () => {
@@ -33,7 +35,34 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
     checkApplication();
   }, [user, pilot]);
 
-  if (isLoading || isCheckingApplication) {
+  useEffect(() => {
+    const checkRecruitmentExamAccess = async () => {
+      if (!user || pilot) return;
+      const isExamPath = location.pathname.startsWith("/academy/exam/");
+      if (!isExamPath) {
+        setHasRecruitmentExamAccess(false);
+        return;
+      }
+
+      const token = new URLSearchParams(location.search).get("recruitmentToken");
+      if (!token) {
+        setHasRecruitmentExamAccess(false);
+        return;
+      }
+
+      setIsCheckingRecruitmentAccess(true);
+      const { data } = await supabase.rpc("can_access_recruitment_exam", {
+        p_token: token,
+        p_user_id: user.id,
+      });
+      setHasRecruitmentExamAccess(!!data);
+      setIsCheckingRecruitmentAccess(false);
+    };
+
+    checkRecruitmentExamAccess();
+  }, [location.pathname, location.search, pilot, user]);
+
+  if (isLoading || isCheckingApplication || isCheckingRecruitmentAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -51,6 +80,10 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
   // If user is authenticated but has no pilot profile, they need to apply or wait for account provisioning
   if (!pilot) {
     const isApproved = applicationStatus === "approved";
+
+    if (location.pathname.startsWith("/academy/exam/") && hasRecruitmentExamAccess) {
+      return <>{children}</>;
+    }
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
